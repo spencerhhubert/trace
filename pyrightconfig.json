@@ -1,0 +1,23 @@
+{
+  "include": ["src"]
+  // "reportGeneralTypeIssues": false,
+  // "reportMissingImports": false,
+  // "reportMissingTypeStubs": false,
+  // "reportOptionalMemberAccess": false,
+  // "reportOptionalCall": false,
+  // "reportOptionalIterable": false,
+  // "reportOptionalSubscript": false,
+  // "reportOptionalOperand": false,
+  // "reportTypedDictNotRequiredAccess": false,
+  // "reportPrivateImportUsage": false,
+  // "reportUnboundVariable": false,
+  // "reportUnusedImport": false,
+  // "reportUnusedVariable": false,
+  // "reportUnusedClass": false,
+  // "reportUnusedFunction": false,
+  // "reportShadowedImports": false,
+  // "reportFunctionMemberAccess": false,
+  // "reportIncompatibleMethodOverride": false,
+  // "reportDuplicateDecorator": false,
+  // "reportOverlappingOverload": false
+}
