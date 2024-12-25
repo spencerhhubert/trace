@@ -17,20 +17,11 @@ def main():
     #
     train_loader, test_loader = getDataLoaders(device)
 
-    configs = [
-        # {"name": "Normal", "params": {}},
-        {"name": "No Delays", "params": {"use_delays": False}},
-        # {"name": "Local Only", "params": {"max_distance": 1.0}},
-        # {"name": "Minimal History", "params": {"history_size": 1}},
-    ]
-
-    for config in configs:
-        print(f"\nTesting {config['name']} configuration...")
-        brain = Brain(device, neuron_count=100, **config["params"])
-        metrics = trainSinX(brain)
-        plotTrainingMetrics(metrics)
-        visualizeNetwork(brain)
-        # metrics = trainMNIST(brain, train_loader, n_epochs=100)
+    brain = Brain(device)
+    metrics = trainSinX(brain)
+    plotTrainingMetrics(metrics)
+    visualizeNetwork(brain)
+    # metrics = trainMNIST(brain, train_loader, n_epochs=100)
 
     # Baseline Identity
     # baseline_identity = BaselineMLP(device, input_size=1, output_size=1)

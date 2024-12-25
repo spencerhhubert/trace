@@ -1,14 +1,12 @@
 import torch
 from torch import nn
 
-INITIAL_NEURON_COUNT = 100
+INITIAL_NEURON_COUNT = 1000
 SYNAPSE_RATIO = 1000
-MAX_DELAY_MS = 100
-MAX_HISTORY_MS = 1000
+MAX_NUM_TIMESTEPS_IN_HISTORY = 10
 
-USE_DELAYS = True
+USE_DELAYS = False
 MAX_DISTANCE = None  # None = unlimited, or set a number to limit connection distance
-HISTORY_SIZE = 1000  # Could reduce to 1 to test without delays
 
 
 class Brain(nn.Module):
@@ -16,9 +14,9 @@ class Brain(nn.Module):
         self,
         device,
         neuron_count=INITIAL_NEURON_COUNT,
-        use_delays=True,
-        max_distance=None,
-        history_size=MAX_HISTORY_MS,
+        use_delays=USE_DELAYS,
+        max_distance=MAX_DISTANCE,
+        history_size=MAX_NUM_TIMESTEPS_IN_HISTORY,
     ):
         super().__init__()
         self.neuron_count = neuron_count
@@ -27,21 +25,7 @@ class Brain(nn.Module):
         self.max_distance = max_distance
         self.history_size = history_size
 
-        # Learnable parameters
-        self.connection_weights = nn.Parameter(torch.empty(0))
-
-        # Non-learnable state
-        self.positions = None
-        self.connection_indices = None  # (2, num_connections) tensor
-        self.delay_values = None  # (num_connections,) tensor
-        self.activations = None
-        self.activation_history = []
-        self.time_step = 0
-
-        self._initializeNetwork()
-        self.to(device)
-
-    def _initializeNetwork(self):
+        # Calculate positions
         cube_size = (self.neuron_count ** (1 / 3)) * 2
         self.positions = torch.rand(
             (self.neuron_count, 3), device=self.device
@@ -81,6 +65,10 @@ class Brain(nn.Module):
             self.delay_values = torch.ones_like(distances[from_idx, to_idx])
 
         self.activations = torch.zeros(self.neuron_count, device=self.device)
+        self.activation_history = []
+        self.time_step = 0
+
+        self.to(device)
 
     def forward(self, input_data, steps=1):
         batch_size = input_data.shape[0]
@@ -98,13 +86,13 @@ class Brain(nn.Module):
 
             # Run network for specified steps
             for _ in range(steps):
-                self.forwardStep()
+                self.step()
 
             outputs.append(self.activations[-input_size:])
 
         return torch.stack(outputs)
 
-    def forwardStep(self):
+    def step(self):
         self.time_step += 1
         self.activation_history.append(self.activations.clone())
 

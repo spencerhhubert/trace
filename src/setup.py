@@ -10,7 +10,6 @@ def setup():
         else "cpu"
     )
     # cpu seems faster on m2? like 2x faster for regular mlp
-    # device = "cpu"
     print(f"PyTorch version: {torch.__version__}")
     print(f"Using device: {device}")
     return device

@@ -5,16 +5,52 @@ import numpy as np
 
 
 def trainSinX(brain):
-    x = torch.linspace(-np.pi, np.pi, 100).unsqueeze(1)
+    # More points in training set
+    x = torch.linspace(-2 * np.pi, 2 * np.pi, 200).unsqueeze(1)
     y = torch.sin(x)
 
-    x = (x + np.pi) / (2 * np.pi)
+    # Normalize to [0,1] range
+    x = (x + 2 * np.pi) / (4 * np.pi)
     y = (y + 1) / 2
 
     x = x.to(brain.device)
     y = y.to(brain.device)
 
     metrics = trainNetwork(brain, x, y, n_epochs=200)
+
+    # Test on wider range after training
+    with torch.no_grad():
+        x_test = torch.linspace(-4 * np.pi, 4 * np.pi, 400).unsqueeze(1)
+        y_test = torch.sin(x_test)
+
+        # Normalize test data the same way
+        x_test_norm = (x_test + 2 * np.pi) / (4 * np.pi)
+        x_test_norm = x_test_norm.to(brain.device)
+
+        # Get predictions in batches to avoid memory issues
+        y_pred = []
+        for i in range(0, len(x_test_norm), 10):
+            batch = x_test_norm[i : i + 10]
+            pred = brain(batch)
+            y_pred.append(pred)
+        y_pred = torch.cat(y_pred)
+
+        # Denormalize predictions
+        y_pred = y_pred * 2 - 1
+
+        plt.figure(figsize=(15, 5))
+        plt.plot(x_test.cpu().numpy(), y_test.cpu().numpy(), label="True sin(x)")
+        plt.plot(
+            x_test.cpu().numpy(), y_pred.cpu().numpy(), "--", label="Network output"
+        )
+        plt.axvspan(
+            -2 * np.pi, 2 * np.pi, color="gray", alpha=0.1, label="Training range"
+        )
+        plt.legend()
+        plt.grid(True)
+        plt.title("Sin(x) Prediction vs Ground Truth")
+        plt.show()
+
     return metrics
 
 
