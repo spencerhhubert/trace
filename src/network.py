@@ -1,17 +1,23 @@
 import torch
 from torch import nn
-import numpy as np
 
 INITIAL_NEURON_COUNT = 100
 SYNAPSE_RATIO = 1000
 MAX_DELAY_MS = 100
 MAX_HISTORY_MS = 1000
 
+USE_DELAYS = True
+MAX_DISTANCE = None  # None = unlimited, or set a number to limit connection distance
+HISTORY_SIZE = 1000  # Could reduce to 1 to test without delays
+
 class Brain(nn.Module):
-    def __init__(self, device, neuron_count=INITIAL_NEURON_COUNT):
+    def __init__(self, device, neuron_count=INITIAL_NEURON_COUNT, use_delays=True, max_distance=None, history_size=MAX_HISTORY_MS):
         super().__init__()
         self.neuron_count = neuron_count
         self.device = device
+        self.use_delays = use_delays
+        self.max_distance = max_distance
+        self.history_size = history_size
 
         # Learnable parameters
         self.connection_weights = nn.Parameter(torch.empty(0))
@@ -35,8 +41,13 @@ class Brain(nn.Module):
         diffs = self.positions.unsqueeze(1) - self.positions.unsqueeze(0)
         distances = torch.norm(diffs, dim=2)
 
-        # Create connectivity using power law
-        connection_probs = 1 / (distances ** 2 + 1)
+        # Apply distance limit if specified
+        if self.max_distance is not None:
+            connection_probs = 1 / (distances ** 2 + 1)
+            connection_probs[distances > self.max_distance] = 0
+        else:
+            connection_probs = 1 / (distances ** 2 + 1)
+
         connection_probs.fill_diagonal_(0)
 
         target_connections = self.neuron_count * SYNAPSE_RATIO
@@ -54,7 +65,10 @@ class Brain(nn.Module):
         # Calculate delays based on distances
         from_idx = self.connection_indices[0]
         to_idx = self.connection_indices[1]
-        self.delay_values = distances[from_idx, to_idx]
+        if self.use_delays:
+            self.delay_values = distances[from_idx, to_idx]
+        else:
+            self.delay_values = torch.ones_like(distances[from_idx, to_idx])
 
         self.activations = torch.zeros(self.neuron_count, device=self.device)
 
@@ -84,7 +98,7 @@ class Brain(nn.Module):
         self.time_step += 1
         self.activation_history.append(self.activations.clone())
 
-        if len(self.activation_history) > MAX_HISTORY_MS:
+        if len(self.activation_history) > self.history_size:
             self.activation_history.pop(0)
 
         total_input = torch.zeros_like(self.activations)
@@ -92,62 +106,16 @@ class Brain(nn.Module):
         # Process all connections at once
         from_idx = self.connection_indices[0]
         to_idx = self.connection_indices[1]
-        delays = self.delay_values.int()  # convert to integer delays
 
-        for i, (from_i, to_i, delay, weight) in enumerate(zip(
-            from_idx, to_idx, delays, self.connection_weights
-        )):
-            if delay < len(self.activation_history):
-                total_input[to_i] += weight * self.activation_history[-delay][from_i]
+        if self.use_delays:
+            delays = self.delay_values.int()
+            for i, (from_i, to_i, delay, weight) in enumerate(zip(
+                from_idx, to_idx, delays, self.connection_weights
+            )):
+                if delay < len(self.activation_history):
+                    total_input[to_i] += weight * self.activation_history[-delay][from_i]
+        else:
+            # Direct connections without delay
+            total_input.index_add_(0, to_idx, self.connection_weights * self.activations[from_idx])
 
         self.activations = torch.tanh(total_input)
-
-    def addNeurons(self, count):
-        old_count = self.neuron_count
-        self.neuron_count += count
-
-        # Extend positions
-        cube_size = (self.neuron_count ** (1/3)) * 2
-        new_positions = torch.rand((count, 3), device=self.device) * cube_size - (cube_size/2)
-        self.positions = torch.cat([self.positions, new_positions])
-
-        # Calculate new connections
-        diffs = self.positions.unsqueeze(1) - self.positions.unsqueeze(0)
-        distances = torch.norm(diffs, dim=2)
-
-        connection_probs = 1 / (distances ** 2 + 1)
-        connection_probs.fill_diagonal_(0)
-        connection_probs[:old_count, :old_count] = 0
-
-        target_connections = count * SYNAPSE_RATIO
-        connection_probs *= (target_connections / connection_probs.sum())
-
-        random_mask = torch.rand_like(connection_probs) < connection_probs
-        new_indices = torch.nonzero(random_mask).t()
-
-        # Add new weights
-        old_weights = self.connection_weights.data
-        new_weights = torch.randn(new_indices.shape[1], device=self.device) * 0.01
-        self.connection_weights = nn.Parameter(torch.cat([old_weights, new_weights]))
-
-        # Update indices and delays
-        self.connection_indices = torch.cat([self.connection_indices, new_indices], dim=1)
-        from_idx = new_indices[0]
-        to_idx = new_indices[1]
-        new_delays = distances[from_idx, to_idx]
-        self.delay_values = torch.cat([self.delay_values, new_delays])
-
-        # Extend activations
-        self.activations = torch.cat([
-            self.activations,
-            torch.zeros(count, device=self.device)
-        ])
-
-    def debugState(self):
-        print(f"\nNetwork State:")
-        print(f"Total parameters: {sum(p.numel() for p in self.parameters())}")
-        print(f"Connection weights range: {self.connection_weights.min():.3f} to {self.connection_weights.max():.3f}")
-        print(f"Number of connections: {len(self.connection_weights)}")
-        print(f"Activation history length: {len(self.activation_history)}")
-        if self.activation_history:
-            print(f"Recent activation range: {self.activation_history[-1].min():.3f} to {self.activation_history[-1].max():.3f}")

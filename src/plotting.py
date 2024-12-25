@@ -42,3 +42,42 @@ def visualizeStructure(positions, connections, indices):
             [start[2], end[2]], 'r-', alpha=0.1)
 
     plt.show()
+
+def visualizeNetwork(brain):
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot neurons
+    positions = brain.positions.cpu().detach().numpy()
+    colors = ['yellow' if i < 784 else 'purple' if i >= len(positions)-10 else 'blue'
+             for i in range(len(positions))]
+
+    ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2],
+              c=colors, alpha=0.6)
+
+    # Plot a sample of connections
+    indices = brain.connection_indices.cpu().detach().numpy()
+    weights = brain.connection_weights.cpu().detach().numpy()
+
+    # Sample connections, more likely to show stronger weights
+    n_samples = min(1000, len(weights))
+    probs = np.abs(weights) / np.abs(weights).sum()
+    sample_idx = np.random.choice(len(weights), size=n_samples, p=probs)
+
+    for idx in sample_idx:
+        start = positions[indices[0, idx]]
+        end = positions[indices[1, idx]]
+        weight = weights[idx]
+        color = 'red' if weight < 0 else 'green'
+        # Set alpha between 0.3 and 0.7 based on weight magnitude
+        alpha = 0.3 + 0.4 * min(1.0, abs(weight))
+        ax.plot([start[0], end[0]],
+                [start[1], end[1]],
+                [start[2], end[2]],
+                color=color, alpha=alpha)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    plt.title('3D Neural Network Structure\nYellow = input, Purple = output\nGreen = positive weights, Red = negative')
+    plt.show()

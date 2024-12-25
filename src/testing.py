@@ -13,8 +13,8 @@ def trainSinX(brain):
     x = x.to(brain.device)
     y = y.to(brain.device)
 
-    metrics = trainNetwork(brain, x, y)
-    return metrics, x, y
+    metrics = trainNetwork(brain, x, y, n_epochs=200)
+    return metrics
 
 def plotSinXResults(brain, x, y):
     plt.figure(figsize=(10, 5))
@@ -27,7 +27,6 @@ def plotSinXResults(brain, x, y):
     plt.show()
 
 def trainIdentity(brain):
-    """Train on y = x first as a sanity check"""
     x = torch.linspace(0, 1, 100).unsqueeze(1)
     y = x.clone()
 
@@ -35,5 +34,75 @@ def trainIdentity(brain):
     y = y.to(brain.device)
 
     print("\nTraining on identity function (y=x)...")
-    metrics = trainNetwork(brain, x, y, n_epochs=100)  # shorter training for test
-    return metrics, x, y
+    metrics = trainNetwork(brain, x, y, n_epochs=100)
+    return metrics
+
+
+def trainMNIST(brain, train_loader, n_epochs=10):
+    optimizer = torch.optim.Adam(brain.parameters(), lr=0.001)
+    criterion = nn.CrossEntropyLoss().to(brain.device)  # Move criterion to same device as brain
+
+    metrics = {
+        'loss': [],
+        'grad_norm': [],
+        'activation_mean': [],
+        'activation_std': [],
+        'active_neuron_ratio': [],
+        'accuracy': []
+    }
+
+    pbar = tqdm(range(n_epochs), desc='Training MNIST')
+    for epoch in pbar:
+        total_loss = 0
+        correct = 0
+        total = 0
+
+        for batch_idx, (data, target) in enumerate(train_loader):
+            data, target = data.to(brain.device), target.to(brain.device)
+            optimizer.zero_grad()
+
+            batch_size = data.size(0)
+            data = data.view(batch_size, -1)  # flatten images
+
+            output = brain(data)
+            loss = criterion(output, target)
+            loss.backward()
+
+            optimizer.step()
+
+            # Calculate accuracy
+            pred = output.argmax(dim=1)
+            correct += pred.eq(target).sum().item()
+            total += target.size(0)
+            total_loss += loss.item()
+
+            # Collect debug metrics
+            with torch.no_grad():
+                grad_norm = torch.norm(torch.stack([
+                    p.grad.norm()
+                    for p in brain.parameters()
+                    if p.grad is not None
+                ]))
+
+                active_neurons = (brain.activations.abs() > 0.01).float().mean()
+                act_mean = brain.activations.mean()
+                act_std = brain.activations.std()
+
+                metrics['grad_norm'].append(grad_norm.item())
+                metrics['activation_mean'].append(act_mean.item())
+                metrics['activation_std'].append(act_std.item())
+                metrics['active_neuron_ratio'].append(active_neurons.item())
+
+        avg_loss = total_loss / len(train_loader)
+        accuracy = 100. * correct / total
+
+        metrics['loss'].append(avg_loss)
+        metrics['accuracy'].append(accuracy)
+
+        pbar.set_postfix({
+            'loss': f'{avg_loss:.4f}',
+            'acc': f'{accuracy:.1f}%',
+            'act%': f'{metrics["active_neuron_ratio"][-1]:.2%}'
+        })
+
+    return metrics
