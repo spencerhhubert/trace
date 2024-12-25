@@ -3,6 +3,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def trainSinX(brain):
     x = torch.linspace(-np.pi, np.pi, 100).unsqueeze(1)
     y = torch.sin(x)
@@ -16,15 +17,17 @@ def trainSinX(brain):
     metrics = trainNetwork(brain, x, y, n_epochs=200)
     return metrics
 
+
 def plotSinXResults(brain, x, y):
     plt.figure(figsize=(10, 5))
-    plt.plot(x.cpu().numpy(), y.cpu().numpy(), label='True sin(x)')
+    plt.plot(x.cpu().numpy(), y.cpu().numpy(), label="True sin(x)")
     with torch.no_grad():
-        y_pred = torch.cat([brain(x[i:i+10]) for i in range(0, len(x), 10)])
-        plt.plot(x.cpu().numpy(), y_pred.cpu().numpy(), '--', label='Network output')
+        y_pred = torch.cat([brain(x[i : i + 10]) for i in range(0, len(x), 10)])
+        plt.plot(x.cpu().numpy(), y_pred.cpu().numpy(), "--", label="Network output")
     plt.legend()
     plt.grid(True)
     plt.show()
+
 
 def trainIdentity(brain):
     x = torch.linspace(0, 1, 100).unsqueeze(1)
@@ -40,18 +43,20 @@ def trainIdentity(brain):
 
 def trainMNIST(brain, train_loader, n_epochs=10):
     optimizer = torch.optim.Adam(brain.parameters(), lr=0.001)
-    criterion = nn.CrossEntropyLoss().to(brain.device)  # Move criterion to same device as brain
+    criterion = nn.CrossEntropyLoss().to(
+        brain.device
+    )  # Move criterion to same device as brain
 
     metrics = {
-        'loss': [],
-        'grad_norm': [],
-        'activation_mean': [],
-        'activation_std': [],
-        'active_neuron_ratio': [],
-        'accuracy': []
+        "loss": [],
+        "grad_norm": [],
+        "activation_mean": [],
+        "activation_std": [],
+        "active_neuron_ratio": [],
+        "accuracy": [],
     }
 
-    pbar = tqdm(range(n_epochs), desc='Training MNIST')
+    pbar = tqdm(range(n_epochs), desc="Training MNIST")
     for epoch in pbar:
         total_loss = 0
         correct = 0
@@ -78,31 +83,37 @@ def trainMNIST(brain, train_loader, n_epochs=10):
 
             # Collect debug metrics
             with torch.no_grad():
-                grad_norm = torch.norm(torch.stack([
-                    p.grad.norm()
-                    for p in brain.parameters()
-                    if p.grad is not None
-                ]))
+                grad_norm = torch.norm(
+                    torch.stack(
+                        [
+                            p.grad.norm()
+                            for p in brain.parameters()
+                            if p.grad is not None
+                        ]
+                    )
+                )
 
                 active_neurons = (brain.activations.abs() > 0.01).float().mean()
                 act_mean = brain.activations.mean()
                 act_std = brain.activations.std()
 
-                metrics['grad_norm'].append(grad_norm.item())
-                metrics['activation_mean'].append(act_mean.item())
-                metrics['activation_std'].append(act_std.item())
-                metrics['active_neuron_ratio'].append(active_neurons.item())
+                metrics["grad_norm"].append(grad_norm.item())
+                metrics["activation_mean"].append(act_mean.item())
+                metrics["activation_std"].append(act_std.item())
+                metrics["active_neuron_ratio"].append(active_neurons.item())
 
         avg_loss = total_loss / len(train_loader)
-        accuracy = 100. * correct / total
+        accuracy = 100.0 * correct / total
 
-        metrics['loss'].append(avg_loss)
-        metrics['accuracy'].append(accuracy)
+        metrics["loss"].append(avg_loss)
+        metrics["accuracy"].append(accuracy)
 
-        pbar.set_postfix({
-            'loss': f'{avg_loss:.4f}',
-            'acc': f'{accuracy:.1f}%',
-            'act%': f'{metrics["active_neuron_ratio"][-1]:.2%}'
-        })
+        pbar.set_postfix(
+            {
+                "loss": f"{avg_loss:.4f}",
+                "acc": f"{accuracy:.1f}%",
+                "act%": f'{metrics["active_neuron_ratio"][-1]:.2%}',
+            }
+        )
 
     return metrics

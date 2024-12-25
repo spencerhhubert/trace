@@ -6,6 +6,7 @@ from testing import *
 from baseline import *
 from util import *
 
+
 def main():
     device = setup()
 
@@ -25,7 +26,7 @@ def main():
 
     for config in configs:
         print(f"\nTesting {config['name']} configuration...")
-        brain = Brain(device, neuron_count=100, **config['params'])
+        brain = Brain(device, neuron_count=100, **config["params"])
         metrics = trainSinX(brain)
         plotTrainingMetrics(metrics)
         visualizeNetwork(brain)
@@ -47,6 +48,7 @@ def main():
     # metrics_baseline_mnist = trainBaselineMNIST(baseline_mnist, train_loader)
     # testBaseline(baseline_mnist, test_loader)
     # plotTrainingMetrics(metrics_baseline_mnist)
+
 
 if __name__ == "__main__":
     main()

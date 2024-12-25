@@ -10,8 +10,16 @@ USE_DELAYS = True
 MAX_DISTANCE = None  # None = unlimited, or set a number to limit connection distance
 HISTORY_SIZE = 1000  # Could reduce to 1 to test without delays
 
+
 class Brain(nn.Module):
-    def __init__(self, device, neuron_count=INITIAL_NEURON_COUNT, use_delays=True, max_distance=None, history_size=MAX_HISTORY_MS):
+    def __init__(
+        self,
+        device,
+        neuron_count=INITIAL_NEURON_COUNT,
+        use_delays=True,
+        max_distance=None,
+        history_size=MAX_HISTORY_MS,
+    ):
         super().__init__()
         self.neuron_count = neuron_count
         self.device = device
@@ -25,7 +33,7 @@ class Brain(nn.Module):
         # Non-learnable state
         self.positions = None
         self.connection_indices = None  # (2, num_connections) tensor
-        self.delay_values = None        # (num_connections,) tensor
+        self.delay_values = None  # (num_connections,) tensor
         self.activations = None
         self.activation_history = []
         self.time_step = 0
@@ -34,8 +42,10 @@ class Brain(nn.Module):
         self.to(device)
 
     def _initializeNetwork(self):
-        cube_size = (self.neuron_count ** (1/3)) * 2
-        self.positions = torch.rand((self.neuron_count, 3), device=self.device) * cube_size - (cube_size/2)
+        cube_size = (self.neuron_count ** (1 / 3)) * 2
+        self.positions = torch.rand(
+            (self.neuron_count, 3), device=self.device
+        ) * cube_size - (cube_size / 2)
 
         # Calculate all pairwise distances
         diffs = self.positions.unsqueeze(1) - self.positions.unsqueeze(0)
@@ -43,15 +53,15 @@ class Brain(nn.Module):
 
         # Apply distance limit if specified
         if self.max_distance is not None:
-            connection_probs = 1 / (distances ** 2 + 1)
+            connection_probs = 1 / (distances**2 + 1)
             connection_probs[distances > self.max_distance] = 0
         else:
-            connection_probs = 1 / (distances ** 2 + 1)
+            connection_probs = 1 / (distances**2 + 1)
 
         connection_probs.fill_diagonal_(0)
 
         target_connections = self.neuron_count * SYNAPSE_RATIO
-        connection_probs *= (target_connections / connection_probs.sum())
+        connection_probs *= target_connections / connection_probs.sum()
 
         # Sample connections based on probabilities
         random_mask = torch.rand_like(connection_probs) < connection_probs
@@ -109,13 +119,17 @@ class Brain(nn.Module):
 
         if self.use_delays:
             delays = self.delay_values.int()
-            for i, (from_i, to_i, delay, weight) in enumerate(zip(
-                from_idx, to_idx, delays, self.connection_weights
-            )):
+            for i, (from_i, to_i, delay, weight) in enumerate(
+                zip(from_idx, to_idx, delays, self.connection_weights)
+            ):
                 if delay < len(self.activation_history):
-                    total_input[to_i] += weight * self.activation_history[-delay][from_i]
+                    total_input[to_i] += (
+                        weight * self.activation_history[-delay][from_i]
+                    )
         else:
             # Direct connections without delay
-            total_input.index_add_(0, to_idx, self.connection_weights * self.activations[from_idx])
+            total_input.index_add_(
+                0, to_idx, self.connection_weights * self.activations[from_idx]
+            )
 
         self.activations = torch.tanh(total_input)

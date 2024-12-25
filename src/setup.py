@@ -1,5 +1,6 @@
 import torch
 
+
 def setup():
     device = (
         "mps"
