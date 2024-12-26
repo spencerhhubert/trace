@@ -66,6 +66,7 @@ class Brain(nn.Module):
 
         self.activations = torch.zeros(self.neuron_count, device=self.device)
         self.activation_history = []
+        self.biases = nn.Parameter(torch.zeros(self.neuron_count, device=self.device))
         self.time_step = 0
 
         self.to(device)
@@ -120,4 +121,5 @@ class Brain(nn.Module):
                 0, to_idx, self.connection_weights * self.activations[from_idx]
             )
 
+        total_input += self.biases
         self.activations = torch.tanh(total_input)
