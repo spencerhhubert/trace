@@ -27,12 +27,13 @@ def main():
     # testInputSensitivity(brain)
     #
 
+    # testGradientFlow(brain)
+    # return
 
     # two issues
-    # 1) can encounter situation where information cannot flow because input points to a neuron that only has inputs
-    # 2) actually, this may not be that, it seems like neurons can have connections that go both ways
-    metrics, x, y = trainSinX(brain, 20)
+    metrics, x, y = trainSinX(brain, 50)
     # metrics,x,y = testConstantOutput(brain)
+    # visualizeGradientFlowAsImage(brain, x, y)
     plotTrainingMetrics(metrics)
     with torch.no_grad():
         y_pred = torch.cat([brain(x[i : i + 10]) for i in range(0, len(x), 10)])
@@ -44,7 +45,9 @@ def main():
     # Baseline
     baseline_sin = BaselineMLP(device, input_size=1, output_size=1, hidden_size=20)
     countWeightsAffectingOutput(baseline_sin)
-    metrics_baseline, x_baseline, y_baseline = trainBaselineSinX(baseline_sin, n_epochs=500)
+    metrics_baseline, x_baseline, y_baseline = trainBaselineSinX(
+        baseline_sin, n_epochs=500
+    )
     plotTrainingMetrics(metrics_baseline)
     with torch.no_grad():
         y_pred_baseline = baseline_sin(x_baseline)

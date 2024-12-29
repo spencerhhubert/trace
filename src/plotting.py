@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from collections import deque
 import matplotlib.animation as animation
+from torchviz import make_dot
+from torch.utils.tensorboard import SummaryWriter
 
 
 def plotTrainingMetrics(metrics):
@@ -186,6 +188,10 @@ def animateNetworkActivity(brain):
 
     positions = brain.positions.cpu().detach().numpy()
     activations_over_time = brain.activations_over_time
+
+    if torch.is_tensor(activations_over_time):
+        activations_over_time = activations_over_time.cpu().numpy()
+
     time_steps = activations_over_time.shape[0]
 
     connections_from = brain.connection_indices[0].cpu().numpy()
@@ -196,16 +202,18 @@ def animateNetworkActivity(brain):
     total_synapses = len(weights)
 
     fig = plt.figure(figsize=(12, 8))
-    ax = fig.add_subplot(111, projection='3d')
+    ax = fig.add_subplot(111, projection="3d")
 
     max_activation = np.max(np.abs(activations_over_time))
     norm = plt.Normalize(-max_activation, max_activation)
     weight_norm = plt.Normalize(-np.max(np.abs(weights)), np.max(np.abs(weights)))
-    neuron_cmap = plt.get_cmap('coolwarm')
-    connection_cmap = plt.get_cmap('RdYlBu')
+    neuron_cmap = plt.get_cmap("coolwarm")
+    connection_cmap = plt.get_cmap("RdYlBu")
 
     # Plot connections (synapses) with arrows
-    for i, (from_idx, to_idx, weight) in enumerate(zip(connections_from, connections_to, weights)):
+    for i, (from_idx, to_idx, weight) in enumerate(
+        zip(connections_from, connections_to, weights)
+    ):
         # Get positions for start and end points
         start = positions[from_idx]
         end = positions[to_idx]
@@ -214,7 +222,9 @@ def animateNetworkActivity(brain):
         direction = end - start
 
         # Create points for the line (excluding the very end to leave room for arrow)
-        arrow_length = np.linalg.norm(direction) * 0.2  # Arrow length is 20% of total length
+        arrow_length = (
+            np.linalg.norm(direction) * 0.2
+        )  # Arrow length is 20% of total length
         direction_normalized = direction / np.linalg.norm(direction)
         arrow_start = end - direction_normalized * arrow_length
 
@@ -226,20 +236,24 @@ def animateNetworkActivity(brain):
             [start[2], arrow_start[2]],
             color=connection_color,
             alpha=0.6,  # Increased opacity
-            linewidth=abs(weight) * 4  # Increased line width
+            linewidth=abs(weight) * 4,  # Increased line width
         )
         ax.add_line(line)
 
         # Add arrow head
         arrow_mutation_scale = 20  # Size of arrow head
         ax.quiver(
-            arrow_start[0], arrow_start[1], arrow_start[2],
-            direction_normalized[0], direction_normalized[1], direction_normalized[2],
+            arrow_start[0],
+            arrow_start[1],
+            arrow_start[2],
+            direction_normalized[0],
+            direction_normalized[1],
+            direction_normalized[2],
             length=arrow_length,
             color=connection_color,
             alpha=0.6,
             arrow_length_ratio=0.3,  # Controls the size of the arrow head
-            normalize=True
+            normalize=True,
         )
 
     # Plot neurons
@@ -247,7 +261,7 @@ def animateNetworkActivity(brain):
         positions[:, 0],
         positions[:, 1],
         positions[:, 2],
-        c='gray',
+        c="gray",
         s=100,
     )
 
@@ -259,28 +273,28 @@ def animateNetworkActivity(brain):
         positions[input_neurons, 0],
         positions[input_neurons, 1],
         positions[input_neurons, 2],
-        c='yellow',
+        c="yellow",
         s=150,
-        label=f'Input neurons ({len(input_neurons)})'
+        label=f"Input neurons ({len(input_neurons)})",
     )
 
     ax.scatter(
         positions[output_neurons, 0],
         positions[output_neurons, 1],
         positions[output_neurons, 2],
-        c='purple',
+        c="purple",
         s=150,
-        label=f'Output neurons ({len(output_neurons)})'
+        label=f"Output neurons ({len(output_neurons)})",
     )
 
     # Add network stats to legend
-    ax.scatter([], [], c='gray', s=100, label=f'Total neurons: {total_neurons}')
-    ax.scatter([], [], c='gray', alpha=0, label=f'Total synapses: {total_synapses}')
+    ax.scatter([], [], c="gray", s=100, label=f"Total neurons: {total_neurons}")
+    ax.scatter([], [], c="gray", alpha=0, label=f"Total synapses: {total_synapses}")
 
     ax.legend()
 
     # Add a text annotation for the time step
-    time_text = ax.text2D(0.02, 0.95, '', transform=ax.transAxes)
+    time_text = ax.text2D(0.02, 0.95, "", transform=ax.transAxes)
 
     def update(frame):
         activations = activations_over_time[frame]
@@ -288,25 +302,61 @@ def animateNetworkActivity(brain):
         sizes = 100 + 100 * np.abs(activations)
         scat.set_color(colors)
         scat.set_sizes(sizes)
-        time_text.set_text(f'Time Step: {frame + 1}/{time_steps}')
+        time_text.set_text(f"Time Step: {frame + 1}/{time_steps}")
         return scat, time_text
 
     ani = animation.FuncAnimation(
-        fig,
-        update,
-        frames=time_steps,
-        interval=100,
-        blit=True,
-        repeat=True
+        fig, update, frames=time_steps, interval=100, blit=True, repeat=True
     )
 
     # Adjust the view
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
     ax.view_init(elev=20, azim=45)
     ax.mouse_init()
 
-    plt.title('Neural Network Activity\nNeuron color = activation, Connection color = weight')
+    plt.title(
+        "Neural Network Activity\nNeuron color = activation, Connection color = weight"
+    )
     plt.tight_layout()
     plt.show()
+
+
+def visualizeGradientFlowAsImage(brain, x, y):
+    # Forward pass
+    output = brain(x)
+    loss = torch.nn.MSELoss()(output, y)
+
+    dot = make_dot(loss, params=dict(brain.named_parameters()))
+
+    # Save and display
+    dot.render("computation_graph", format="png", cleanup=True)
+
+    # Print additional info about gradients
+    print("\nGradient flow info:")
+    for name, param in brain.named_parameters():
+        if param.grad is not None:
+            print(f"{name}:")
+            print(f"  Shape: {param.grad.shape}")
+            print(f"  Gradient values: {param.grad}")
+            print(f"  Requires grad: {param.requires_grad}")
+
+
+def visualizeGradientFlowInBrowser(brain, x, y):
+    writer = SummaryWriter("runs/experiment_1")
+
+    # Add graph
+    writer.add_graph(brain, x)
+
+    print("\nTensorboard is ready!")
+    print("Run 'tensorboard --logdir=runs' in terminal")
+    print("Then open http://localhost:6006 in your browser")
+
+    # Optional: add some extra parameter tracking
+    for name, param in brain.named_parameters():
+        if param.grad is not None:
+            writer.add_histogram(name, param.data)
+            writer.add_histogram(f"{name}.grad", param.grad)
+
+    writer.close()

@@ -25,26 +25,23 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=10, learning_rate=0.01):
 
             optimizer.zero_grad()
 
-            print("\nParameters BEFORE:")
-            for name, param in brain.named_parameters():
-                print(f"{name}: {param}")
+            # print("\nParameters BEFORE:")
+            # for name, param in brain.named_parameters():
+            #     print(f"{name}: {param}")
 
             output = brain(batch_x)
             loss = criterion(output, batch_y)
             loss.backward()
 
-            print("\nGradients:")
-            for name, param in brain.named_parameters():
-                if param.grad is None:
-                    print(f"Parameter {name} has no gradient!")
-                else:
-                    print(f"Gradient for {name}: {param.grad}")
+            # print("\nGradients:")
+            # for name, param in brain.named_parameters():
+            #     print(f"{name} grad: {param.grad}")
 
             optimizer.step()
 
-            print("\nParameters AFTER:")
-            for name, param in brain.named_parameters():
-                print(f"{name}: {param}")
+            # print("\nParameters AFTER:")
+            # for name, param in brain.named_parameters():
+            #     print(f"{name}: {param}")
 
             total_loss += loss.item()
 
@@ -63,7 +60,9 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=10, learning_rate=0.01):
 
                 # Activation statistics
                 ACTIVATION_THRESHOLD = 0.01
-                active_neurons = (brain.activations.abs() > ACTIVATION_THRESHOLD).float().mean()
+                active_neurons = (
+                    (brain.activations.abs() > ACTIVATION_THRESHOLD).float().mean()
+                )
                 act_mean = brain.activations.mean()
                 act_std = brain.activations.std()
 

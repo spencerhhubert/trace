@@ -6,12 +6,13 @@ import numpy as np
 
 
 def trainSinX(brain, n_epochs):
-    # x = torch.linspace(-2 * np.pi, 2 * np.pi, 200).unsqueeze(1)
-    # y = torch.sin(x)
+    x = torch.linspace(-2 * np.pi, 2 * np.pi, 200).unsqueeze(1)
+    y = torch.sin(x)
 
-    # x = (x + 2 * np.pi) / (4 * np.pi)
-    # y = (y + 1) / 2
-    #
+    x = (x + 2 * np.pi) / (4 * np.pi)
+    y = (y + 1) / 2
+
+    #overwrite to just be linear
     x = torch.linspace(0, 1, 200).unsqueeze(1)
     y = 2 * x + 0.3  # y = 2x + 0.3
 
@@ -150,8 +151,13 @@ def testBasicFunction(brain):
         brain.step()
         print(f"\nAfter step {step+1}:")
         print(f"Input neuron activations: {brain.activations[input_neurons].tolist()}")
-        print(f"Hidden neuron activations: {brain.activations[hidden_neurons].tolist()}")
-        print(f"Output neuron activations: {brain.activations[output_neurons].tolist()}")
+        print(
+            f"Hidden neuron activations: {brain.activations[hidden_neurons].tolist()}"
+        )
+        print(
+            f"Output neuron activations: {brain.activations[output_neurons].tolist()}"
+        )
+
 
 def traceSignalPath(brain):
     from_idx = brain.connection_indices[0]
@@ -168,7 +174,9 @@ def traceSignalPath(brain):
 
     print("\nNeuron connectivity:")
     for i in range(brain.neuron_count):
-        print(f"Neuron {i}: {inputs_per_neuron[i]} inputs, {outputs_per_neuron[i]} outputs")
+        print(
+            f"Neuron {i}: {inputs_per_neuron[i]} inputs, {outputs_per_neuron[i]} outputs"
+        )
 
     print(f"\nTotal connections: {len(weights)}")
     print(f"Average connections per neuron: {len(weights)/brain.neuron_count:.1f}")
@@ -223,7 +231,7 @@ def testSignalFlow(brain):
     brain.activations = torch.zeros(brain.neuron_count, device=brain.device)
 
     # Set extreme input values
-    brain.activations[:brain.input_size] = torch.tensor([0.0])
+    brain.activations[: brain.input_size] = torch.tensor([0.0])
     print(f"Input 0.0 -> Output: {brain.activations[-brain.output_size:].item()}")
 
     brain.step()
@@ -231,7 +239,7 @@ def testSignalFlow(brain):
 
     # Reset and test with 1.0
     brain.activations = torch.zeros(brain.neuron_count, device=brain.device)
-    brain.activations[:brain.input_size] = torch.tensor([1.0])
+    brain.activations[: brain.input_size] = torch.tensor([1.0])
     print(f"\nInput 1.0 -> Output: {brain.activations[-brain.output_size:].item()}")
 
     brain.step()
@@ -254,3 +262,33 @@ def testConstantOutput(brain):
     print(f"\nFinal output neuron biases: {brain.biases[-brain.output_size:].data}")
 
     return metrics, x, y
+
+
+def testGradientFlow(brain):
+    # Set a single input
+    x = torch.tensor([[1.0]], device=brain.device)
+    y = torch.tensor([[0.5]], device=brain.device)
+
+    # Forward pass with prints
+    print("\nForward pass:")
+    output = brain(x)
+    print(f"Input: {x.item()}")
+    print(f"Output: {output.item()}")
+
+    # Compute loss
+    loss = (output - y) ** 2
+    print(f"Loss: {loss.item()}")
+
+    # Backward pass
+    loss.backward()
+
+    # Print gradient info at each step
+    print("\nGradient info:")
+    for name, param in brain.named_parameters():
+        print(f"\n{name}:")
+        if param.grad is None:
+            print("  No gradient!")
+        else:
+            print(f"  Gradient shape: {param.grad.shape}")
+            print(f"  Gradient values: {param.grad}")
+            print(f"  Parameter values: {param.data}")
