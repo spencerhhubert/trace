@@ -10,28 +10,47 @@ from util import *
 def main():
     device = setup()
 
-    # # Brain stuff
-    # brain = Brain(device)
-    # metrics_identity = trainIdentity(brain)
-    # plotTrainingMetrics(metrics_identity)
-    #
     train_loader, test_loader = getDataLoaders(device)
 
-    brain = Brain(device)
-    metrics = trainSinX(brain)
+    brain = Brain(
+        device,
+        NEURON_COUNT,
+        1,
+        1,
+        True,
+    )
+    analyzeConnectivity(brain)
+    countWeightsAffectingOutputBasedOnInput(brain)
+    # testBasicFunction(brain)
+    # traceSignalPath(brain)
+    # analyzeSinApproximation(brain)
+    # testInputSensitivity(brain)
+    #
+
+
+    # two issues
+    # 1) can encounter situation where information cannot flow because input points to a neuron that only has inputs
+    # 2) actually, this may not be that, it seems like neurons can have connections that go both ways
+    metrics, x, y = trainSinX(brain, 20)
+    # metrics,x,y = testConstantOutput(brain)
     plotTrainingMetrics(metrics)
-    visualizeNetwork(brain)
-    # metrics = trainMNIST(brain, train_loader, n_epochs=100)
+    with torch.no_grad():
+        y_pred = torch.cat([brain(x[i : i + 10]) for i in range(0, len(x), 10)])
+        plotFunctionResults(x, y, y_pred, "Brain: Sin(x) Results")
+    animateNetworkActivity(brain)
 
-    # Baseline Identity
-    # baseline_identity = BaselineMLP(device, input_size=1, output_size=1)
-    # metrics_baseline_identity = trainBaselineIdentity(baseline_identity)
-    # plotTrainingMetrics(metrics_baseline_identity)
+    return
 
-    # # Baseline Sin(x)
-    # baseline_sin = BaselineMLP(device, input_size=1, output_size=1)
-    # metrics_baseline_sin = trainBaselineSinX(baseline_sin)
-    # plotTrainingMetrics(metrics_baseline_sin)
+    # Baseline
+    baseline_sin = BaselineMLP(device, input_size=1, output_size=1, hidden_size=20)
+    countWeightsAffectingOutput(baseline_sin)
+    metrics_baseline, x_baseline, y_baseline = trainBaselineSinX(baseline_sin, n_epochs=500)
+    plotTrainingMetrics(metrics_baseline)
+    with torch.no_grad():
+        y_pred_baseline = baseline_sin(x_baseline)
+        plotFunctionResults(
+            x_baseline, y_baseline, y_pred_baseline, "Baseline: Sin(x) Results"
+        )
 
     # MNIST
     # train_loader, test_loader = getDataLoaders(device)

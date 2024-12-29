@@ -17,16 +17,35 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=10, learning_rate=0.01):
 
     pbar = tqdm(range(n_epochs), desc="Training")
     for epoch in pbar:
-        optimizer.zero_grad()
-
         total_loss = 0
+
         for i in range(0, len(x), batch_size):
             batch_x = x[i : i + batch_size]
             batch_y = y[i : i + batch_size]
 
+            optimizer.zero_grad()
+
+            print("\nParameters BEFORE:")
+            for name, param in brain.named_parameters():
+                print(f"{name}: {param}")
+
             output = brain(batch_x)
             loss = criterion(output, batch_y)
             loss.backward()
+
+            print("\nGradients:")
+            for name, param in brain.named_parameters():
+                if param.grad is None:
+                    print(f"Parameter {name} has no gradient!")
+                else:
+                    print(f"Gradient for {name}: {param.grad}")
+
+            optimizer.step()
+
+            print("\nParameters AFTER:")
+            for name, param in brain.named_parameters():
+                print(f"{name}: {param}")
+
             total_loss += loss.item()
 
             # Collect debug metrics
@@ -43,7 +62,8 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=10, learning_rate=0.01):
                 )
 
                 # Activation statistics
-                active_neurons = (brain.activations.abs() > 0.01).float().mean()
+                ACTIVATION_THRESHOLD = 0.01
+                active_neurons = (brain.activations.abs() > ACTIVATION_THRESHOLD).float().mean()
                 act_mean = brain.activations.mean()
                 act_std = brain.activations.std()
 
@@ -51,8 +71,6 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=10, learning_rate=0.01):
                 metrics["activation_mean"].append(act_mean.item())
                 metrics["activation_std"].append(act_std.item())
                 metrics["active_neuron_ratio"].append(active_neurons.item())
-
-        optimizer.step()
 
         avg_loss = total_loss / (len(x) // batch_size)
         metrics["loss"].append(avg_loss)

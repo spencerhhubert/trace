@@ -87,7 +87,7 @@ def trainBaselineIdentity(model):
     return trainBaselineRegression(model, x, y, "Identity")
 
 
-def trainBaselineSinX(model):
+def trainBaselineSinX(model, n_epochs):
     x = torch.linspace(-np.pi, np.pi, 100).unsqueeze(1)
     y = torch.sin(x)
 
@@ -97,7 +97,8 @@ def trainBaselineSinX(model):
     x = x.to(model.device)
     y = y.to(model.device)
 
-    return trainBaselineRegression(model, x, y, "Sin(x)")
+    metrics = trainBaselineRegression(model, x, y, "Sin(x)", n_epochs)
+    return metrics, x, y
 
 
 def testBaseline(model, test_loader):
@@ -116,3 +117,12 @@ def testBaseline(model, test_loader):
     accuracy = 100.0 * correct / total
     print(f"\nTest accuracy: {accuracy:.1f}%")
     return accuracy
+
+
+def countWeightsAffectingOutput(model):
+    total_params = 0
+    for name, param in model.named_parameters():
+        if param.requires_grad:  # only count trainable parameters
+            total_params += param.numel()
+    print(f"Number of weights affecting output in baseline model: {total_params}")
+    return total_params
