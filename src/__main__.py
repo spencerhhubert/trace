@@ -19,6 +19,8 @@ def main():
         1,
         True,
     )
+    # debugNetworkFlow(brain)
+    # return
     analyzeConnectivity(brain)
     countWeightsAffectingOutputBasedOnInput(brain)
     # testBasicFunction(brain)
@@ -31,7 +33,7 @@ def main():
     # return
 
     # two issues
-    metrics, x, y = trainSinX(brain, 50)
+    metrics, x, y = trainSinX(brain, 10)
     # metrics,x,y = testConstantOutput(brain)
     # visualizeGradientFlowAsImage(brain, x, y)
     plotTrainingMetrics(metrics)

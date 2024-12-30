@@ -3,7 +3,7 @@ from torch import nn
 from tqdm import tqdm
 
 
-def trainNetwork(brain, x, y, n_epochs=1000, batch_size=10, learning_rate=0.01):
+def trainNetwork(brain, x, y, n_epochs=1000, batch_size=1, learning_rate=0.01):
     optimizer = torch.optim.Adam(brain.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
 
@@ -32,6 +32,8 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=10, learning_rate=0.01):
             output = brain(batch_x)
             loss = criterion(output, batch_y)
             loss.backward()
+
+            torch.nn.utils.clip_grad_norm_(brain.parameters(), max_norm=1.0)
 
             # print("\nGradients:")
             # for name, param in brain.named_parameters():

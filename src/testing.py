@@ -13,13 +13,32 @@ def trainSinX(brain, n_epochs):
     y = (y + 1) / 2
 
     #overwrite to just be linear
-    x = torch.linspace(0, 1, 200).unsqueeze(1)
-    y = 2 * x + 0.3  # y = 2x + 0.3
+    if True:
+        x = torch.linspace(0, 2, 200).unsqueeze(1)
+        y = 2 * x + 0.3
+        #y = (x ** 2)
+        # y = (x ** 3) + (x ** 2)
 
     x = x.to(brain.device)
     y = y.to(brain.device)
 
     metrics = trainNetwork(brain, x, y, n_epochs)
+
+    # Add the weight forcing here, before returning
+    if False:
+        with torch.no_grad():
+            # Force all weights and biases
+            input_to_hidden_idx = (brain.connection_indices[0] == 0) & (brain.connection_indices[1] == 1)
+            hidden_to_output_idx = (brain.connection_indices[0] == 1) & (brain.connection_indices[1] == 2)
+
+            brain.connection_weights[input_to_hidden_idx] = 2.0  # Pass through the 2x
+            brain.connection_weights[hidden_to_output_idx] = 1.0  # Pass through unchanged
+
+            # The 0.3 goes in the output neuron's bias
+            brain.biases[-1] = 0.3
+            # Zero other biases to not interfere
+            brain.biases[:-1] = 0.0
+
     return metrics, x, y
 
 
@@ -292,3 +311,48 @@ def testGradientFlow(brain):
             print(f"  Gradient shape: {param.grad.shape}")
             print(f"  Gradient values: {param.grad}")
             print(f"  Parameter values: {param.data}")
+
+
+
+def debugNetworkFlow(brain):
+    # Reset state
+    brain.activations = torch.zeros(brain.neuron_count, device=brain.device)
+    brain.activation_history = []
+    brain.time_step = 0
+
+    print("\nDebugging network flow:")
+    print(f"Network structure: {brain.neuron_count} neurons")
+    print("Connection map:")
+    for i, (from_idx, to_idx) in enumerate(zip(brain.connection_indices[0], brain.connection_indices[1])):
+        print(f"Connection {i}: {from_idx} -> {to_idx} (weight: {brain.connection_weights[i].item():.3f})")
+
+    # Set input
+    x = torch.tensor([1.0], device=brain.device)
+
+    print("\nInitial state:")
+    print(f"Activations: {brain.activations}")
+
+    for step in range(5):
+        if step == 0:
+            brain.current_input = x
+            brain.activations[0] = x
+
+        print(f"\nBefore step {step + 1}:")
+        print(f"Activations: {brain.activations}")
+        print(f"Raw weights * inputs being added to each neuron:")
+
+        # Debug the computation
+        from_idx = brain.connection_indices[0]
+        to_idx = brain.connection_indices[1]
+        activations_from = brain.activations[from_idx]
+        weighted_inputs = activations_from * brain.connection_weights
+
+        for i in range(brain.neuron_count):
+            inputs_to_i = weighted_inputs[to_idx == i]
+            if len(inputs_to_i) > 0:
+                print(f"  Neuron {i}: {inputs_to_i.tolist()}")
+
+        brain.step()
+
+        print(f"After step {step + 1}:")
+        print(f"Activations: {brain.activations}")

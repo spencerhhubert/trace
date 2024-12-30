@@ -3,11 +3,11 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-NEURON_COUNT = 20
+NEURON_COUNT = 9
 SYNAPSE_RATIO = 100
 MAX_NUM_TIMESTEPS_IN_HISTORY = 1
-STEPS = 20
-MAX_DISTANCE = 5 # None = unlimited, or set a number to limit connection distance
+STEPS = 10
+MAX_DISTANCE = 4 # None = unlimited, or set a number to limit connection distance
 
 
 class Brain(nn.Module):
@@ -27,6 +27,9 @@ class Brain(nn.Module):
         self.max_distance = MAX_DISTANCE
         self.history_size = MAX_NUM_TIMESTEPS_IN_HISTORY
         self.activations_over_time = []
+        self.store_activations = True
+
+        self.act = torch.nn.Tanh()
 
         self._initPositions(cluster_io)
         self._initConnections()
@@ -212,7 +215,7 @@ class Brain(nn.Module):
         # Initialize learnable weights
         self.connection_weights = nn.Parameter(
             torch.randn(self.connection_indices.shape[1], device=self.device)
-            * 0.1  # 0.01
+            * 0.01  # 0.01
         )
 
     def _initStateVariables(self):
@@ -229,67 +232,78 @@ class Brain(nn.Module):
             self.neuron_count - self.output_size, self.neuron_count, device=self.device
         )
 
+    #note: because of this behavior where we stop the forward pass when an output neuron is triggered
+    #first of all, we're going to need to something clever. this is kind of a big architectural mess
+    #but also, I think we can simple force a min number of jumps between the input and output neurons
     def forward(self, input_data):
+        SHOULD_PRINT =True
         batch_size = input_data.shape[0]
-        self.store_activations = True  # Flag to control activation recording
-
         outputs = []
+
         for batch_idx in range(batch_size):
-            # Reset state for each sequence
-            self.activations = torch.zeros(self.neuron_count, device=self.device)
+            # Reset network state
             self.activation_history = []
-            self.time_step = 0
+            self.activations = torch.zeros(self.neuron_count, device=self.device)
 
-            # Store current input for use in step
-            self.current_input = input_data[batch_idx]
-            # Initialize input neurons with this batch item
-            self.activations[: self.input_size] = self.current_input
+            # Set input value only at timestep 0
+            self.activations[:self.input_size] = input_data[batch_idx]
+            self.activation_history.append(self.activations.clone())
 
-            for _ in range(STEPS):
-                self.step()
+            if SHOULD_PRINT:
+                print(f"\nStarting forward pass with input: {input_data[batch_idx]}")
 
-            outputs.append(self.activations[-self.output_size:].clone())
+            # Step until output neuron activates or max steps reached
+            for step_idx in range(STEPS):
+                if SHOULD_PRINT:
+                    print(f"\nStep {step_idx + 1}")
+                    print(f"Current activations: {self.activations}")
 
-        self.activations_over_time = (
-            torch.stack(self.activation_history)
-            if self.activation_history
-            else None
-        )
+                # Compute next timestep (starts as all zeros)
+                next_activations = torch.zeros_like(self.activations)
+
+                # Get all connections and their current values
+                from_idx = self.connection_indices[0]
+                to_idx = self.connection_indices[1]
+                from_values = self.activations[from_idx]
+
+                if SHOULD_PRINT:
+                    print(f"Values from source neurons: {from_values}")
+                    print(f"Weights: {self.connection_weights}")
+
+                # Compute weighted inputs to each target neuron
+                weighted_inputs = from_values * self.connection_weights
+                if SHOULD_PRINT:
+                    print(f"Weighted inputs: {weighted_inputs}")
+
+                # Accumulate inputs at target neurons
+                next_activations.index_add_(0, to_idx, weighted_inputs)
+                if SHOULD_PRINT:
+                    print(f"After accumulation (before bias): {next_activations}")
+
+                # Check if output neuron received actual signal (before bias)
+                output_received_signal = next_activations[-1] != 0
+
+                # Add biases and apply activation function where there's input
+                next_activations += self.biases
+                active_neurons = next_activations != 0
+                next_activations[active_neurons] = self.act(next_activations[active_neurons])
+
+                if SHOULD_PRINT:
+                    print(f"Next activations (after bias): {next_activations}")
+
+                # Store and update
+                self.activation_history.append(next_activations.clone())
+                self.activations = next_activations
+
+                # Only stop if output received actual signal (not just bias)
+                if output_received_signal:
+                    if SHOULD_PRINT:
+                        print(f"Output neuron received actual signal at step {step_idx + 1}")
+                    break
+
+            outputs.append(self.activations[-1].clone())
+
+        # Store full activation history for visualization
+        self.activations_over_time = torch.stack(self.activation_history)
 
         return torch.stack(outputs)
-
-    def step(self):
-        self.time_step += 1
-        prev_activations = self.activations
-
-        # Optionally store activations for analysis without tracking gradients
-        if self.store_activations:
-            self.activation_history.append(prev_activations.detach().cpu())
-
-        from_idx = self.connection_indices[0]
-        to_idx = self.connection_indices[1]
-
-        activations_from = prev_activations[from_idx]
-        weights = self.connection_weights
-
-        weighted_inputs = activations_from * weights
-
-        # Use out-of-place operation to prevent interfering with autograd
-        total_input = torch.zeros_like(self.activations)
-        total_input = total_input.index_add(0, to_idx, weighted_inputs)
-
-        total_input += self.biases
-
-        # Compute new activations
-        new_activations = torch.tanh(total_input)
-
-        # Accumulate activations over time
-        self.activations = prev_activations + new_activations
-
-        # Optionally apply decay to prevent activations from growing indefinitely
-        # Uncomment the next line to apply decay
-        # self.activations = self.activations * decay_factor
-
-        # Keep input neurons' activations fixed to the input data
-        input_indices = torch.arange(self.input_size, device=self.device)
-        self.activations[input_indices] = self.current_input
