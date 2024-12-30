@@ -1,13 +1,11 @@
-import numpy as np
 import torch
 from torch import nn
-import torch.nn.functional as F
 
 NEURON_COUNT = 9
 SYNAPSE_RATIO = 100
 MAX_NUM_TIMESTEPS_IN_HISTORY = 1
 STEPS = 10
-MAX_DISTANCE = 4 # None = unlimited, or set a number to limit connection distance
+MAX_DISTANCE = 4  # None = unlimited, or set a number to limit connection distance
 
 
 class Brain(nn.Module):
@@ -232,11 +230,11 @@ class Brain(nn.Module):
             self.neuron_count - self.output_size, self.neuron_count, device=self.device
         )
 
-    #note: because of this behavior where we stop the forward pass when an output neuron is triggered
-    #first of all, we're going to need to something clever. this is kind of a big architectural mess
-    #but also, I think we can simple force a min number of jumps between the input and output neurons
+    # note: because of this behavior where we stop the forward pass when an output neuron is triggered
+    # first of all, we're going to need to something clever. this is kind of a big architectural mess
+    # but also, I think we can simple force a min number of jumps between the input and output neurons
     def forward(self, input_data):
-        SHOULD_PRINT =True
+        SHOULD_PRINT = True
         batch_size = input_data.shape[0]
         outputs = []
 
@@ -246,7 +244,7 @@ class Brain(nn.Module):
             self.activations = torch.zeros(self.neuron_count, device=self.device)
 
             # Set input value only at timestep 0
-            self.activations[:self.input_size] = input_data[batch_idx]
+            self.activations[: self.input_size] = input_data[batch_idx]
             self.activation_history.append(self.activations.clone())
 
             if SHOULD_PRINT:
@@ -286,7 +284,9 @@ class Brain(nn.Module):
                 # Add biases and apply activation function where there's input
                 next_activations += self.biases
                 active_neurons = next_activations != 0
-                next_activations[active_neurons] = self.act(next_activations[active_neurons])
+                next_activations[active_neurons] = self.act(
+                    next_activations[active_neurons]
+                )
 
                 if SHOULD_PRINT:
                     print(f"Next activations (after bias): {next_activations}")
@@ -298,7 +298,9 @@ class Brain(nn.Module):
                 # Only stop if output received actual signal (not just bias)
                 if output_received_signal:
                     if SHOULD_PRINT:
-                        print(f"Output neuron received actual signal at step {step_idx + 1}")
+                        print(
+                            f"Output neuron received actual signal at step {step_idx + 1}"
+                        )
                     break
 
             outputs.append(self.activations[-1].clone())

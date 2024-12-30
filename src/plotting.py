@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from collections import deque
-import matplotlib.animation as animation
 from torchviz import make_dot
 from torch.utils.tensorboard import SummaryWriter
 
@@ -241,7 +240,6 @@ def animateNetworkActivity(brain):
         ax.add_line(line)
 
         # Add arrow head
-        arrow_mutation_scale = 20  # Size of arrow head
         ax.quiver(
             arrow_start[0],
             arrow_start[1],
@@ -305,7 +303,7 @@ def animateNetworkActivity(brain):
         time_text.set_text(f"Time Step: {frame + 1}/{time_steps}")
         return scat, time_text
 
-    ani = animation.FuncAnimation(
+    animation.FuncAnimation(
         fig, update, frames=time_steps, interval=100, blit=True, repeat=True
     )
 

@@ -1,4 +1,3 @@
-from plotting import plotTrainingMetrics
 from training import *
 import torch
 import matplotlib.pyplot as plt
@@ -12,11 +11,11 @@ def trainSinX(brain, n_epochs):
     x = (x + 2 * np.pi) / (4 * np.pi)
     y = (y + 1) / 2
 
-    #overwrite to just be linear
+    # overwrite to just be linear
     if True:
         x = torch.linspace(0, 2, 200).unsqueeze(1)
         y = 2 * x + 0.3
-        #y = (x ** 2)
+        # y = (x ** 2)
         # y = (x ** 3) + (x ** 2)
 
     x = x.to(brain.device)
@@ -28,11 +27,17 @@ def trainSinX(brain, n_epochs):
     if False:
         with torch.no_grad():
             # Force all weights and biases
-            input_to_hidden_idx = (brain.connection_indices[0] == 0) & (brain.connection_indices[1] == 1)
-            hidden_to_output_idx = (brain.connection_indices[0] == 1) & (brain.connection_indices[1] == 2)
+            input_to_hidden_idx = (brain.connection_indices[0] == 0) & (
+                brain.connection_indices[1] == 1
+            )
+            hidden_to_output_idx = (brain.connection_indices[0] == 1) & (
+                brain.connection_indices[1] == 2
+            )
 
             brain.connection_weights[input_to_hidden_idx] = 2.0  # Pass through the 2x
-            brain.connection_weights[hidden_to_output_idx] = 1.0  # Pass through unchanged
+            brain.connection_weights[
+                hidden_to_output_idx
+            ] = 1.0  # Pass through unchanged
 
             # The 0.3 goes in the output neuron's bias
             brain.biases[-1] = 0.3
@@ -160,7 +165,7 @@ def testBasicFunction(brain):
 
     # Set input
     brain.activations[input_neurons] = 1.0
-    print(f"Initial state:")
+    print("Initial state:")
     print(f"Input neuron activations: {brain.activations[input_neurons].tolist()}")
     print(f"Hidden neuron activations: {brain.activations[hidden_neurons].tolist()}")
     print(f"Output neuron activations: {brain.activations[output_neurons].tolist()}")
@@ -313,7 +318,6 @@ def testGradientFlow(brain):
             print(f"  Parameter values: {param.data}")
 
 
-
 def debugNetworkFlow(brain):
     # Reset state
     brain.activations = torch.zeros(brain.neuron_count, device=brain.device)
@@ -323,8 +327,12 @@ def debugNetworkFlow(brain):
     print("\nDebugging network flow:")
     print(f"Network structure: {brain.neuron_count} neurons")
     print("Connection map:")
-    for i, (from_idx, to_idx) in enumerate(zip(brain.connection_indices[0], brain.connection_indices[1])):
-        print(f"Connection {i}: {from_idx} -> {to_idx} (weight: {brain.connection_weights[i].item():.3f})")
+    for i, (from_idx, to_idx) in enumerate(
+        zip(brain.connection_indices[0], brain.connection_indices[1])
+    ):
+        print(
+            f"Connection {i}: {from_idx} -> {to_idx} (weight: {brain.connection_weights[i].item():.3f})"
+        )
 
     # Set input
     x = torch.tensor([1.0], device=brain.device)
@@ -339,7 +347,7 @@ def debugNetworkFlow(brain):
 
         print(f"\nBefore step {step + 1}:")
         print(f"Activations: {brain.activations}")
-        print(f"Raw weights * inputs being added to each neuron:")
+        print("Raw weights * inputs being added to each neuron:")
 
         # Debug the computation
         from_idx = brain.connection_indices[0]
