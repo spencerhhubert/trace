@@ -234,7 +234,7 @@ class Brain(nn.Module):
     # first of all, we're going to need to something clever. this is kind of a big architectural mess
     # but also, I think we can simple force a min number of jumps between the input and output neurons
     def forward(self, input_data):
-        SHOULD_PRINT = True
+        SHOULD_PRINT = False
         batch_size = input_data.shape[0]
         outputs = []
 
@@ -281,17 +281,22 @@ class Brain(nn.Module):
                 # Check if output neuron received actual signal (before bias)
                 output_received_signal = next_activations[-1] != 0
 
-                # Add biases and apply activation function where there's input
-                next_activations += self.biases
+                # Only add bias and apply activation to neurons that received input
                 active_neurons = next_activations != 0
-                next_activations[active_neurons] = self.act(
-                    next_activations[active_neurons]
-                )
+                next_activations[active_neurons] += self.biases[active_neurons]
+                # next_activations[active_neurons] = self.act(next_activations[active_neurons])
+
+                # TESTING: Make output neuron just sum its inputs (ignore weights)
+                if True:  # Easy to comment out
+                    output_connections = to_idx == (self.neuron_count - 1)
+                    next_activations[-1] = torch.sum(
+                        self.activations[from_idx[output_connections]]
+                    )
 
                 if SHOULD_PRINT:
                     print(f"Next activations (after bias): {next_activations}")
 
-                # Store and update
+                # Previous activations are completely replaced by new ones
                 self.activation_history.append(next_activations.clone())
                 self.activations = next_activations
 

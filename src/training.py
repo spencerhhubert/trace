@@ -30,6 +30,7 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=1, learning_rate=0.01):
             #     print(f"{name}: {param}")
 
             output = brain(batch_x)
+            output = output.unsqueeze(1) if output.dim() == 1 else output
             loss = criterion(output, batch_y)
             loss.backward()
 
