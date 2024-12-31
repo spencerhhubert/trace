@@ -130,44 +130,20 @@ def analyzeConnectivity(brain):
         print("No paths exist from any input neuron to any output neuron.")
 
 
-def countWeightsAffectingOutputBasedOnInput(brain):
-    neuron_count = brain.neuron_count
-    input_neurons = brain.input_neurons.cpu().numpy()
-    output_neurons = set(brain.output_neurons.cpu().numpy())
+def countWeightsAffectingOutput(brain):
+    total_params = 0
 
-    # Build adjacency list
-    adjacency_list = [[] for _ in range(neuron_count)]
-    from_indices = brain.connection_indices[0].cpu().numpy()
-    to_indices = brain.connection_indices[1].cpu().numpy()
+    # Count connection weights
+    total_params += len(brain.connection_weights)
 
-    for idx, (src, dst) in enumerate(zip(from_indices, to_indices)):
-        adjacency_list[src].append((dst, idx))
+    # Count biases (excluding input neurons)
+    total_params += len(brain.biases) - brain.input_size
 
-    visited_neurons = set(input_neurons)
-    queue = deque(input_neurons)
-    visited_weights = set()
+    print(f"\nNumber of weights affecting brain output: {total_params}")
+    print(f"  Connection weights: {len(brain.connection_weights)}")
+    print(f"  Biases (excluding input): {len(brain.biases) - brain.input_size}")
 
-    while queue:
-        current_neuron = queue.popleft()
-        for neighbor, weight_idx in adjacency_list[current_neuron]:
-            # Collect all weights traversed, regardless of whether neighbor was visited
-            visited_weights.add(weight_idx)
-            if neighbor not in visited_neurons:
-                visited_neurons.add(neighbor)
-                queue.append(neighbor)
-
-    # Check if output neurons are reachable
-    neurons_affecting_output = visited_neurons.intersection(output_neurons)
-    if neurons_affecting_output:
-        num_weights_affecting_output = len(visited_weights)
-        print(
-            f"Number of weights affecting output neurons based on inputs: {num_weights_affecting_output}"
-        )
-    else:
-        print("No output neurons are reachable from the input neurons.")
-        num_weights_affecting_output = 0
-
-    return num_weights_affecting_output
+    return total_params
 
 
 def plotFunctionResults(x, y_true, y_pred, title="Function Comparison"):
@@ -180,7 +156,7 @@ def plotFunctionResults(x, y_true, y_pred, title="Function Comparison"):
     plt.show()
 
 
-def animateNetworkActivity(brain):
+def animateNetworkActivity(brain, show_weight_labels=True, show_weight_magnitude=True):
     import matplotlib.animation as animation
     from mpl_toolkits.mplot3d.art3d import Line3D
     import numpy as np
@@ -209,7 +185,8 @@ def animateNetworkActivity(brain):
     neuron_cmap = plt.get_cmap("coolwarm")
     connection_cmap = plt.get_cmap("RdYlBu")
 
-    # Plot connections (synapses) with arrows
+    # Plot connections (synapses) with arrows and optional weight labels
+    weight_labels = []
     for i, (from_idx, to_idx, weight) in enumerate(
         zip(connections_from, connections_to, weights)
     ):
@@ -219,23 +196,26 @@ def animateNetworkActivity(brain):
 
         # Calculate direction vector
         direction = end - start
+        midpoint = start + direction * 0.5  # Point for weight label
 
         # Create points for the line (excluding the very end to leave room for arrow)
-        arrow_length = (
-            np.linalg.norm(direction) * 0.2
-        )  # Arrow length is 20% of total length
+        arrow_length = np.linalg.norm(direction) * 0.2
         direction_normalized = direction / np.linalg.norm(direction)
         arrow_start = end - direction_normalized * arrow_length
 
         # Draw main connection line
         connection_color = connection_cmap(weight_norm(weight))
+        line_width = 1
+        if show_weight_magnitude:
+            line_width = abs(weight) * 4
+
         line = Line3D(
             [start[0], arrow_start[0]],
             [start[1], arrow_start[1]],
             [start[2], arrow_start[2]],
             color=connection_color,
-            alpha=0.6,  # Increased opacity
-            linewidth=abs(weight) * 4,  # Increased line width
+            alpha=0.6,
+            linewidth=line_width,
         )
         ax.add_line(line)
 
@@ -250,9 +230,22 @@ def animateNetworkActivity(brain):
             length=arrow_length,
             color=connection_color,
             alpha=0.6,
-            arrow_length_ratio=0.3,  # Controls the size of the arrow head
+            arrow_length_ratio=0.3,
             normalize=True,
         )
+
+        # Add weight label if enabled
+        if show_weight_labels:
+            weight_label = ax.text(
+                midpoint[0],
+                midpoint[1],
+                midpoint[2],
+                f"{weight:.2f}",
+                color='black',
+                alpha=0.8,
+                fontsize=8,
+            )
+            weight_labels.append(weight_label)
 
     # Plot neurons
     scat = ax.scatter(
@@ -319,7 +312,6 @@ def animateNetworkActivity(brain):
     )
     plt.tight_layout()
     plt.show()
-
 
 def visualizeGradientFlowAsImage(brain, x, y):
     # Forward pass

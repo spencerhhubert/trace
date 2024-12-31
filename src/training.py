@@ -25,9 +25,12 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=1, learning_rate=0.01):
 
             optimizer.zero_grad()
 
-            # print("\nParameters BEFORE:")
-            # for name, param in brain.named_parameters():
-            #     print(f"{name}: {param}")
+            SHOULD_PRINT = False
+
+            if SHOULD_PRINT:
+                print("\nParameters BEFORE:")
+                for name, param in brain.named_parameters():
+                    print(f"{name}: {param}")
 
             output = brain(batch_x)
             output = output.unsqueeze(1) if output.dim() == 1 else output
@@ -36,15 +39,17 @@ def trainNetwork(brain, x, y, n_epochs=1000, batch_size=1, learning_rate=0.01):
 
             torch.nn.utils.clip_grad_norm_(brain.parameters(), max_norm=1.0)
 
-            # print("\nGradients:")
-            # for name, param in brain.named_parameters():
-            #     print(f"{name} grad: {param.grad}")
+            if SHOULD_PRINT:
+                print("\nGradients:")
+                for name, param in brain.named_parameters():
+                    print(f"{name} grad: {param.grad}")
 
             optimizer.step()
 
-            # print("\nParameters AFTER:")
-            # for name, param in brain.named_parameters():
-            #     print(f"{name}: {param}")
+            if SHOULD_PRINT:
+                print("\nParameters AFTER:")
+                for name, param in brain.named_parameters():
+                    print(f"{name}: {param}")
 
             total_loss += loss.item()
 

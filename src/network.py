@@ -1,11 +1,13 @@
 import torch
 from torch import nn
 
-NEURON_COUNT = 9
+NEURON_COUNT = 12
 SYNAPSE_RATIO = 100
 MAX_NUM_TIMESTEPS_IN_HISTORY = 1
-STEPS = 10
+STEPS =  10
 MAX_DISTANCE = 4  # None = unlimited, or set a number to limit connection distance
+FORCE_MLP_STRUCTURE = True
+HIDDEN_LAYERS = [5,5]  # Only used if FORCE_MLP_STRUCTURE is True
 
 
 class Brain(nn.Module):
@@ -18,7 +20,6 @@ class Brain(nn.Module):
         cluster_io,
     ):
         super().__init__()
-        self.neuron_count = neuron_count
         self.device = device
         self.input_size = input_size
         self.output_size = output_size
@@ -27,15 +28,81 @@ class Brain(nn.Module):
         self.activations_over_time = []
         self.store_activations = True
 
+        if FORCE_MLP_STRUCTURE:
+            self.neuron_count = input_size + sum(HIDDEN_LAYERS) + output_size
+            if self.neuron_count != neuron_count:
+                raise ValueError(
+                    f"NEURON_COUNT ({neuron_count}) must equal sum of layers "
+                    f"({input_size} + {sum(HIDDEN_LAYERS)} + {output_size} = {self.neuron_count})"
+                )
+        else:
+            self.neuron_count = neuron_count
+
         self.act = torch.nn.Tanh()
 
-        self._initPositions(cluster_io)
-        self._initConnections()
-        self._pruneIsolatedNeurons()
+        if FORCE_MLP_STRUCTURE:
+            self._initMLPPositions()
+            self._initMLPConnections()
+        else:
+            self._initPositions(cluster_io)
+            self._initConnections()
+            self._pruneIsolatedNeurons()
+
         self._initWeights()
         self._initStateVariables()
-        self._severInputOutputConnections()
+        if not FORCE_MLP_STRUCTURE:
+            self._severInputOutputConnections()
         self.to(device)
+
+    def _initMLPPositions(self):
+        # Calculate the total number of layers (input + hidden + output)
+        total_layers = len(HIDDEN_LAYERS) + 2
+        layer_sizes = [self.input_size] + HIDDEN_LAYERS + [self.output_size]
+
+        # Initialize positions tensor
+        self.positions = torch.zeros((self.neuron_count, 3), device=self.device)
+
+        # Set z-coordinate based on layer (depth)
+        current_idx = 0
+        z_spacing = 2.0  # Space between layers
+        for layer_idx, size in enumerate(layer_sizes):
+            # Z coordinate is uniform for each layer
+            z = layer_idx * z_spacing - (total_layers - 1) * z_spacing / 2
+
+            # Arrange neurons in a grid pattern on the XY plane
+            grid_size = int(torch.sqrt(torch.tensor(size)).ceil())
+            for i in range(size):
+                x = (i % grid_size) - grid_size / 2
+                y = (i // grid_size) - grid_size / 2
+                self.positions[current_idx + i] = torch.tensor([x, y, z])
+
+            current_idx += size
+
+    def _initMLPConnections(self):
+        connections = []
+        layer_sizes = [self.input_size] + HIDDEN_LAYERS + [self.output_size]
+
+        # Keep track of the starting index for each layer
+        current_idx = 0
+        next_idx = self.input_size
+
+        # Connect each layer to the next layer
+        for i in range(len(layer_sizes) - 1):
+            current_size = layer_sizes[i]
+            next_size = layer_sizes[i + 1]
+
+            # Fully connect current layer to next layer
+            for j in range(current_size):
+                for k in range(next_size):
+                    connections.append([
+                        current_idx + j,  # From neuron in current layer
+                        next_idx + k      # To neuron in next layer
+                    ])
+
+            current_idx = next_idx
+            next_idx += next_size
+
+        self.connection_indices = torch.tensor(connections, device=self.device).t()
 
     def _severInputOutputConnections(self):
         # Special case: remove any direct connections between input and output neurons
@@ -213,7 +280,7 @@ class Brain(nn.Module):
         # Initialize learnable weights
         self.connection_weights = nn.Parameter(
             torch.randn(self.connection_indices.shape[1], device=self.device)
-            * 0.01  # 0.01
+            * 0.01
         )
 
     def _initStateVariables(self):
@@ -233,8 +300,77 @@ class Brain(nn.Module):
     # note: because of this behavior where we stop the forward pass when an output neuron is triggered
     # first of all, we're going to need to something clever. this is kind of a big architectural mess
     # but also, I think we can simple force a min number of jumps between the input and output neurons
+    def step(self, should_print=False):
+        if should_print:
+            active_indices = torch.nonzero(self.activations).squeeze()
+            if active_indices.dim() == 0:
+                active_indices = active_indices.unsqueeze(0)
+            active_values = self.activations[active_indices]
+            print(f"\n=== Step {self.time_step + 1} ===")
+            print("Active neurons before step:")
+            for idx, val in zip(active_indices.cpu().tolist(), active_values.cpu().tolist()):
+                print(f"  Neuron {idx}: {val:.3f}")
+
+        # Compute next timestep (starts as all zeros)
+        next_activations = torch.zeros_like(self.activations)
+
+        # Get all connections and their current values
+        from_idx = self.connection_indices[0]
+        to_idx = self.connection_indices[1]
+        from_values = self.activations[from_idx]
+
+        if should_print:
+            print("\nActive connections:")
+            active_conns = from_values != 0
+            for i, is_active in enumerate(active_conns):
+                if is_active:
+                    print(f"  {from_idx[i]} -> {to_idx[i]}: weight={self.connection_weights[i]:.3f}, value={from_values[i]:.3f}")
+
+        # Compute weighted inputs to each target neuron
+        weighted_inputs = from_values * self.connection_weights
+        next_activations.index_add_(0, to_idx, weighted_inputs)
+
+        if should_print:
+            print("\nRaw inputs to neurons (before bias/activation):")
+            receiving_indices = torch.nonzero(next_activations != 0).squeeze()
+            if receiving_indices.dim() == 0:
+                receiving_indices = receiving_indices.unsqueeze(0)
+            for idx in receiving_indices:
+                print(f"  Neuron {idx}: {next_activations[idx]:.3f}")
+
+        # Only add bias and apply activation to neurons that received input
+        active_neurons = next_activations != 0
+        next_activations[active_neurons] += self.biases[active_neurons]
+
+        # Don't apply activation to output neuron
+        active_hidden_neurons = active_neurons.clone()
+        active_hidden_neurons[-self.output_size:] = False
+
+        if active_hidden_neurons.any():
+            active_idx = torch.nonzero(active_hidden_neurons).squeeze()
+            if active_idx.dim() == 0:
+                active_idx = active_idx.unsqueeze(0)
+            pre_act = next_activations[active_hidden_neurons]
+            next_activations[active_hidden_neurons] = self.act(next_activations[active_hidden_neurons])
+            post_act = next_activations[active_hidden_neurons]
+
+            if should_print:
+                print("\nAfter bias and activation:")
+                for idx, pre, post in zip(active_idx, pre_act, post_act):
+                    print(f"  Neuron {idx}: {pre:.3f} -> {post:.3f}")
+
+        # Previous activations are completely replaced by new ones
+        self.activation_history.append(next_activations.clone())
+        self.activations = next_activations
+        self.time_step += 1
+
+        output_received_signal = next_activations[-1] != 0
+        if output_received_signal and should_print:
+            print(f"\nOutput neuron activated: {next_activations[-1]:.3f}")
+
+        return output_received_signal
+
     def forward(self, input_data):
-        SHOULD_PRINT = False
         batch_size = input_data.shape[0]
         outputs = []
 
@@ -242,70 +378,15 @@ class Brain(nn.Module):
             # Reset network state
             self.activation_history = []
             self.activations = torch.zeros(self.neuron_count, device=self.device)
+            self.time_step = 0
 
             # Set input value only at timestep 0
             self.activations[: self.input_size] = input_data[batch_idx]
             self.activation_history.append(self.activations.clone())
 
-            if SHOULD_PRINT:
-                print(f"\nStarting forward pass with input: {input_data[batch_idx]}")
-
             # Step until output neuron activates or max steps reached
-            for step_idx in range(STEPS):
-                if SHOULD_PRINT:
-                    print(f"\nStep {step_idx + 1}")
-                    print(f"Current activations: {self.activations}")
-
-                # Compute next timestep (starts as all zeros)
-                next_activations = torch.zeros_like(self.activations)
-
-                # Get all connections and their current values
-                from_idx = self.connection_indices[0]
-                to_idx = self.connection_indices[1]
-                from_values = self.activations[from_idx]
-
-                if SHOULD_PRINT:
-                    print(f"Values from source neurons: {from_values}")
-                    print(f"Weights: {self.connection_weights}")
-
-                # Compute weighted inputs to each target neuron
-                weighted_inputs = from_values * self.connection_weights
-                if SHOULD_PRINT:
-                    print(f"Weighted inputs: {weighted_inputs}")
-
-                # Accumulate inputs at target neurons
-                next_activations.index_add_(0, to_idx, weighted_inputs)
-                if SHOULD_PRINT:
-                    print(f"After accumulation (before bias): {next_activations}")
-
-                # Check if output neuron received actual signal (before bias)
-                output_received_signal = next_activations[-1] != 0
-
-                # Only add bias and apply activation to neurons that received input
-                active_neurons = next_activations != 0
-                next_activations[active_neurons] += self.biases[active_neurons]
-                # next_activations[active_neurons] = self.act(next_activations[active_neurons])
-
-                # TESTING: Make output neuron just sum its inputs (ignore weights)
-                if True:  # Easy to comment out
-                    output_connections = to_idx == (self.neuron_count - 1)
-                    next_activations[-1] = torch.sum(
-                        self.activations[from_idx[output_connections]]
-                    )
-
-                if SHOULD_PRINT:
-                    print(f"Next activations (after bias): {next_activations}")
-
-                # Previous activations are completely replaced by new ones
-                self.activation_history.append(next_activations.clone())
-                self.activations = next_activations
-
-                # Only stop if output received actual signal (not just bias)
-                if output_received_signal:
-                    if SHOULD_PRINT:
-                        print(
-                            f"Output neuron received actual signal at step {step_idx + 1}"
-                        )
+            for _ in range(STEPS):
+                if self.step(should_print=False):
                     break
 
             outputs.append(self.activations[-1].clone())

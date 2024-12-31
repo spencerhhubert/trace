@@ -8,41 +8,16 @@ def trainSinX(brain, n_epochs):
     x = torch.linspace(-2 * np.pi, 2 * np.pi, 200).unsqueeze(1)
     y = torch.sin(x)
 
-    x = (x + 2 * np.pi) / (4 * np.pi)
-    y = (y + 1) / 2
-
     # overwrite to just be linear
-    if True:
-        x = torch.linspace(0, 2, 200).unsqueeze(1)
-        y = 2 * x + 0.3
-        # y = (x ** 2)
-        # y = (x ** 3) + (x ** 2)
+    x = torch.linspace(-4, 4, 200).unsqueeze(1)
+    # y = 3 * x + 0.3
+    y = (x ** 2)
+    # y = (x ** 3) + (x ** 2)
 
     x = x.to(brain.device)
     y = y.to(brain.device)
 
     metrics = trainNetwork(brain, x, y, n_epochs)
-
-    # Add the weight forcing here, before returning
-    if False:
-        with torch.no_grad():
-            # Force all weights and biases
-            input_to_hidden_idx = (brain.connection_indices[0] == 0) & (
-                brain.connection_indices[1] == 1
-            )
-            hidden_to_output_idx = (brain.connection_indices[0] == 1) & (
-                brain.connection_indices[1] == 2
-            )
-
-            brain.connection_weights[input_to_hidden_idx] = 2.0  # Pass through the 2x
-            brain.connection_weights[
-                hidden_to_output_idx
-            ] = 1.0  # Pass through unchanged
-
-            # The 0.3 goes in the output neuron's bias
-            brain.biases[-1] = 0.3
-            # Zero other biases to not interfere
-            brain.biases[:-1] = 0.0
 
     return metrics, x, y
 

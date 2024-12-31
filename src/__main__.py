@@ -12,6 +12,19 @@ def main():
 
     train_loader, test_loader = getDataLoaders(device)
 
+    # Baseline
+    # baseline_sin = BaselineMLP(device, input_size=1, output_size=1, hidden_size=5)
+    # countWeightsAffectingBaselineOutput(baseline_sin)
+    # metrics_baseline, x_baseline, y_baseline = trainBaselineSinX(
+    #     baseline_sin, n_epochs=1000
+    # )
+    # plotTrainingMetrics(metrics_baseline)
+    # with torch.no_grad():
+    #     y_pred_baseline = baseline_sin(x_baseline)
+    #     plotFunctionResults(
+    #         x_baseline, y_baseline, y_pred_baseline, "Baseline: Sin(x) Results"
+    #     )
+    # return
     brain = Brain(
         device,
         NEURON_COUNT,
@@ -22,7 +35,7 @@ def main():
     # debugNetworkFlow(brain)
     # return
     analyzeConnectivity(brain)
-    countWeightsAffectingOutputBasedOnInput(brain)
+    countWeightsAffectingOutput(brain)
     # testBasicFunction(brain)
     # traceSignalPath(brain)
     # analyzeSinApproximation(brain)
@@ -32,8 +45,7 @@ def main():
     # testGradientFlow(brain)
     # return
 
-    # two issues
-    metrics, x, y = trainSinX(brain, 10)
+    metrics, x, y = trainSinX(brain, 30)
     # metrics,x,y = testConstantOutput(brain)
     # visualizeGradientFlowAsImage(brain, x, y)
     plotTrainingMetrics(metrics)
@@ -42,20 +54,9 @@ def main():
         plotFunctionResults(x, y, y_pred, "Brain: Sin(x) Results")
     animateNetworkActivity(brain)
 
-    return
+    # return
 
-    # Baseline
-    baseline_sin = BaselineMLP(device, input_size=1, output_size=1, hidden_size=20)
-    countWeightsAffectingOutput(baseline_sin)
-    metrics_baseline, x_baseline, y_baseline = trainBaselineSinX(
-        baseline_sin, n_epochs=500
-    )
-    plotTrainingMetrics(metrics_baseline)
-    with torch.no_grad():
-        y_pred_baseline = baseline_sin(x_baseline)
-        plotFunctionResults(
-            x_baseline, y_baseline, y_pred_baseline, "Baseline: Sin(x) Results"
-        )
+
 
     # MNIST
     # train_loader, test_loader = getDataLoaders(device)

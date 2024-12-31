@@ -8,6 +8,8 @@ class BaselineMLP(nn.Module):
     def __init__(self, device, input_size, output_size, hidden_size=100):
         super().__init__()
         self.device = device
+
+        # Create layers separately to modify initialization
         self.net = nn.Sequential(
             nn.Flatten(),
             nn.Linear(input_size, hidden_size),
@@ -16,6 +18,13 @@ class BaselineMLP(nn.Module):
             nn.Tanh(),
             nn.Linear(hidden_size, output_size),
         )
+
+        # Initialize weights with same scheme as Brain
+        for m in self.net.modules():
+            if isinstance(m, nn.Linear):
+                m.weight.data = torch.randn_like(m.weight.data) * 0.01
+                m.bias.data = torch.zeros_like(m.bias.data) * 0.1
+
         self.to(device)
 
     def forward(self, x):
@@ -78,6 +87,10 @@ def trainBaselineRegression(model, x, y, task_name, n_epochs=10):
         metrics["loss"].append(loss.item())
         pbar.set_postfix({"loss": f"{loss.item():.4f}"})
 
+    print("\nLearned Parameters:")
+    for name, param in model.named_parameters():
+        print(f"{name}:")
+        print(param.data)
     return metrics
 
 
@@ -119,10 +132,18 @@ def testBaseline(model, test_loader):
     return accuracy
 
 
-def countWeightsAffectingOutput(model):
+def countWeightsAffectingBaselineOutput(model):
     total_params = 0
+    param_counts = {}
     for name, param in model.named_parameters():
-        if param.requires_grad:  # only count trainable parameters
-            total_params += param.numel()
-    print(f"Number of weights affecting output in baseline model: {total_params}")
+        if param.requires_grad:
+            count = param.numel()
+            param_counts[name] = count
+            total_params += count
+
+    print(f"\nBaseline Parameter counts:")
+    for name, count in param_counts.items():
+        print(f"{name}: {count}")
+    print(f"\nTotal baseline parameters: {total_params}")
+
     return total_params
