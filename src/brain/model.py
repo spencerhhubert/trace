@@ -191,7 +191,6 @@ class Brain(nn.Module):
 
         return brain
 
-
     def checkBidirectionalConnections(self):
         connections = set()
         bidirectional = []

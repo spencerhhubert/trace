@@ -4,10 +4,11 @@ from brain import *
 import os
 import argparse
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default=None)
-    parser.add_argument('--no-save', type=str, default=None)
+    parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--no-save", type=str, default=None)
     args = parser.parse_args()
 
     if args.model_path is not None:
