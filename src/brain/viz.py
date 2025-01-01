@@ -12,54 +12,64 @@ def createFigureAndAxes():
 def plotNeurons(ax, brain, activation_values=None):
     positions = brain.neuron_positions.cpu().numpy()
 
-    # Plot regular neurons
-    ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2], c="gray", alpha=0.5)
+    # Use Paired colormap for bright but balanced colors
+    colors = plt.cm.Paired
 
-    # Highlight input neurons
+    # Plot regular neurons
+    ax.scatter(
+        positions[:, 0], positions[:, 1], positions[:, 2], c="gray", alpha=0.3
+    )  # More transparent base neurons
+
+    # Yellow for input (index 5 in Paired gives a nice yellow)
     ax.scatter(
         positions[brain.input_indices, 0],
         positions[brain.input_indices, 1],
         positions[brain.input_indices, 2],
-        c="blue",
+        c=[colors(7)],
         s=100,
         label="Input",
     )
 
-    # Highlight output neurons
     ax.scatter(
         positions[brain.output_indices, 0],
         positions[brain.output_indices, 1],
         positions[brain.output_indices, 2],
-        c="red",
+        c=[colors(3)],
         s=100,
         label="Output",
     )
 
-    # If we have activation values, adjust size based on activation
+    # Use coolwarm for activations - brighter than seismic
     if activation_values is not None:
-        sizes = 50 + 200 * np.abs(activation_values.numpy())
+        act_vals = activation_values.numpy()
+        sizes = 50 + 200 * np.abs(act_vals)
+        colors_activation = plt.cm.coolwarm(0.5 * (act_vals + 1))
         ax.scatter(
             positions[:, 0],
             positions[:, 1],
             positions[:, 2],
             s=sizes,
-            c="yellow",
-            alpha=0.3,
-        )
+            c=colors_activation,
+            alpha=0.7,
+        )  # Higher alpha for more visibility
 
 
 def plotSynapses(ax, brain, show_weights=False, weight_thickness=False):
     positions = brain.neuron_positions.cpu().numpy()
     weights = brain.synapse_weights.detach().cpu().numpy()
 
-    # Normalize weights for thickness
     max_thickness = 3
     if weight_thickness:
         thicknesses = max_thickness * np.abs(weights) / np.max(np.abs(weights))
     else:
         thicknesses = np.ones_like(weights)
 
-    # Plot each synapse
+    max_weight = np.max(np.abs(weights))
+    opacities = 0.3 + 0.6 * (np.abs(weights) / max_weight)  # Adjusted opacity range
+
+    # Use coolwarm for synapse colors
+    colors = plt.cm.coolwarm(0.5 * (weights / max_weight + 1))
+
     for i in range(len(weights)):
         from_idx = brain.synapse_indices[0][i]
         to_idx = brain.synapse_indices[1][i]
@@ -67,19 +77,15 @@ def plotSynapses(ax, brain, show_weights=False, weight_thickness=False):
         start = positions[from_idx]
         end = positions[to_idx]
 
-        # Different colors for positive/negative weights
-        color = "green" if weights[i] > 0 else "red"
-
         ax.plot(
             [start[0], end[0]],
             [start[1], end[1]],
             [start[2], end[2]],
-            color=color,
-            alpha=0.3,
+            color=colors[i],
+            alpha=opacities[i],
             linewidth=thicknesses[i],
         )
 
-        # Add weight labels if requested
         if show_weights:
             mid_point = (start + end) / 2
             ax.text(
@@ -117,13 +123,15 @@ def updateAnimation(frame, ax, brain, activation_history):
 def animateBrain(brain):
     fig, ax = createFigureAndAxes()
 
-    FuncAnimation(
+    anim = FuncAnimation(
         fig,
         updateAnimation,
         frames=len(brain.activation_history),
         fargs=(ax, brain, brain.activation_history),
-        interval=500,  # 500ms between frames
+        interval=50,  # 500ms between frames
         repeat=True,
     )
 
-    plt.show()
+    # Keep reference to animation
+    plt.show(block=True)
+    return anim
