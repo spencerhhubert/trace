@@ -190,3 +190,19 @@ class Brain(nn.Module):
         brain.load_state_dict(state["state_dict"])
 
         return brain
+
+
+    def checkBidirectionalConnections(self):
+        connections = set()
+        bidirectional = []
+        for i in range(self.synapse_indices.size(1)):
+            from_idx = self.synapse_indices[0, i].item()
+            to_idx = self.synapse_indices[1, i].item()
+            if (to_idx, from_idx) in connections:
+                bidirectional.append((from_idx, to_idx))
+            connections.add((from_idx, to_idx))
+        if bidirectional:
+            print(f"Found {len(bidirectional)} bidirectional connections:")
+            for a, b in bidirectional[:5]:  # Show first 5
+                print(f"Between neurons {a} and {b}")
+        return bidirectional

@@ -7,6 +7,7 @@ import argparse
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, default=None)
+    parser.add_argument('--no-save', type=str, default=None)
     args = parser.parse_args()
 
     if args.model_path is not None:
@@ -16,12 +17,14 @@ def main():
 
     device = "cpu"
 
-    if os.path.exists(model_path):
+    if os.path.exists(model_path) and args.no_save is None:
         print("Loading pre-trained brain model...")
         brain = Brain.load(model_path, device)
     else:
         print("Training new brain model...")
         brain = Brain(device, input_size=1, output_size=1, init_strategy="spatial")
+
+        brain.checkBidirectionalConnections()
         # metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=10, lr_val=0.01)
         metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=10, lr_val=0.01)
         # metrics_brain, x_brain, y_brain = trainPolynomial(brain, n_epochs=200, lr_val=0.01)
@@ -32,9 +35,10 @@ def main():
             y_pred_brain[i] = brain(x_i)
         plotFunctionResults(x_brain, y_brain, y_pred_brain, "Brain: Linear Results")
 
-        brain.save(model_path)
+        if args.no_save is None:
+            brain.save(model_path)
 
-    visualizeBrain(brain, show_weights=False, weight_thickness=True)
+    visualizeBrain(brain, show_weights=True, weight_thickness=True)
     with torch.no_grad():
         test_input = torch.tensor([[0.5]], device=device)
         brain(test_input)

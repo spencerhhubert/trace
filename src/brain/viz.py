@@ -64,12 +64,6 @@ def plotSynapses(ax, brain, show_weights=False, weight_thickness=False):
     else:
         thicknesses = np.ones_like(weights)
 
-    max_weight = np.max(np.abs(weights))
-    opacities = 0.3 + 0.6 * (np.abs(weights) / max_weight)  # Adjusted opacity range
-
-    # Use coolwarm for synapse colors
-    colors = plt.cm.coolwarm(0.5 * (weights / max_weight + 1))
-
     for i in range(len(weights)):
         from_idx = brain.synapse_indices[0][i]
         to_idx = brain.synapse_indices[1][i]
@@ -77,25 +71,32 @@ def plotSynapses(ax, brain, show_weights=False, weight_thickness=False):
         start = positions[from_idx]
         end = positions[to_idx]
 
-        ax.plot(
-            [start[0], end[0]],
-            [start[1], end[1]],
-            [start[2], end[2]],
-            color=colors[i],
-            alpha=opacities[i],
-            linewidth=thicknesses[i],
-        )
+        # Calculate arrow position (70% along the line)
+        arrow_pos = start + 0.7 * (end - start)
+        # Calculate direction vector for arrow
+        direction = end - start
+        direction = direction / np.linalg.norm(direction)
 
+        # Different colors for positive/negative weights
+        color = plt.cm.coolwarm(0.9) if weights[i] > 0 else plt.cm.coolwarm(0.1)
+
+        # Draw line
+        ax.plot([start[0], end[0]],
+                [start[1], end[1]],
+                [start[2], end[2]],
+                color=color, alpha=0.7, linewidth=thicknesses[i])
+
+        # Add arrow
+        ax.quiver(arrow_pos[0], arrow_pos[1], arrow_pos[2],
+                 direction[0], direction[1], direction[2],
+                 color=color, alpha=0.7,
+                 length=0.2, normalize=True)
+
+        # Add weight labels if requested
         if show_weights:
             mid_point = (start + end) / 2
-            ax.text(
-                mid_point[0],
-                mid_point[1],
-                mid_point[2],
-                f"{weights[i]:.2f}",
-                color="black",
-            )
-
+            ax.text(mid_point[0], mid_point[1], mid_point[2],
+                   f'{weights[i]:.2f}', color='black')
 
 def visualizeBrain(brain, show_weights=False, weight_thickness=False):
     fig, ax = createFigureAndAxes()
@@ -114,9 +115,9 @@ def updateAnimation(frame, ax, brain, activation_history):
     plotNeurons(ax, brain, activation_history[frame])
     plotSynapses(ax, brain, show_weights=False, weight_thickness=True)
 
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
     ax.legend()
 
 
