@@ -33,81 +33,87 @@ class Brain(nn.Module):
         self.to(device)
 
     def _initSpatial(self):
-        ALLOW_BIDIRECTIONAL_CONNECTIONS = False
-        FLIP_OR_PRUNE = "flip"  # "flip" or "prune"
-        SPREAD_FACTOR = 100
-        self.neuron_positions = (torch.rand(NEURON_COUNT, 3) * 2 - 1) * SPREAD_FACTOR
+        MAX_DISTANCE = 2
+        # Create three clusters at different positions
+        input_origin = torch.tensor([-1.0, -1.0, -1.0])
+        hidden_origin = torch.tensor([0.0, 0.0, 0.0])
+        output_origin = torch.tensor([1.0, 1.0, 1.0])
 
-        # Find the actual bounds of our network
-        min_coords = torch.min(self.neuron_positions, dim=0).values
-        max_coords = torch.max(self.neuron_positions, dim=0).values
+        # How spread out each cluster is
+        HIDDEN_CLUSTER_SPREAD = 0.6
+        IO_CLUSTER_SPREAD = 0.1
 
-        # Define opposite corners using actual bounds
-        input_corner = min_coords
-        output_corner = max_coords
+        # Place neurons in their clusters
+        self.neuron_positions = torch.empty(NEURON_COUNT, 3)
+        self.input_indices = torch.arange(self.input_size)
+        self.output_indices = torch.arange(
+            NEURON_COUNT - self.output_size, NEURON_COUNT
+        )
 
-        # Calculate distances to corners for each neuron
-        input_distances = torch.cdist(self.neuron_positions, input_corner.unsqueeze(0))
-        output_distances = torch.cdist(self.neuron_positions, output_corner.unsqueeze(0))
+        # Create each cluster
+        self.neuron_positions[self.input_indices] = (
+            torch.randn(self.input_size, 3) * IO_CLUSTER_SPREAD + input_origin
+        )
+        self.neuron_positions[self.output_indices] = (
+            torch.randn(self.output_size, 3) * IO_CLUSTER_SPREAD + output_origin
+        )
 
-        # Select neurons closest to each corner
-        self.input_indices = torch.argsort(input_distances.squeeze())[:self.input_size]
-        self.output_indices = torch.argsort(output_distances.squeeze())[:self.output_size]
+        # Hidden neurons
+        hidden_start = self.input_size
+        hidden_end = NEURON_COUNT - self.output_size
+        n_hidden = hidden_end - hidden_start
+        self.neuron_positions[hidden_start:hidden_end] = (
+            torch.randn(n_hidden, 3) * HIDDEN_CLUSTER_SPREAD + hidden_origin
+        )
 
-        # Calculate distances between all neurons
+        # Calculate distances and connection probabilities
         distances = torch.cdist(self.neuron_positions, self.neuron_positions)
+        probs = 1 / (
+            distances**2 + 0.1
+        )  # Reduce the denominator offset to make distant connections more likely
+        probs[
+            torch.arange(NEURON_COUNT), torch.arange(NEURON_COUNT)
+        ] = 0  # No self connections
 
-        if ALLOW_BIDIRECTIONAL_CONNECTIONS:
-            # Generate connection probabilities based on inverse square distance
-            probs = 1 / (distances**2 + 1)
-            probs[torch.arange(NEURON_COUNT), torch.arange(NEURON_COUNT)] = 0  # No self connections
-
-            # Calculate actual possible connections vs target
-            target_connections = int(NEURON_COUNT * SYNAPSE_RATIO)
-            possible_connections = NEURON_COUNT * (NEURON_COUNT - 1)
-            actual_connections = min(target_connections, possible_connections)
-
-            flat_probs = probs.flatten()
-            sampled_indices = torch.multinomial(flat_probs, actual_connections)
-
-            rows = sampled_indices // NEURON_COUNT
-            cols = sampled_indices % NEURON_COUNT
-
-        else:
-            # Create all possible connections (only one direction between any two neurons)
-            rows, cols = [], []
-            for i in range(NEURON_COUNT):
-                for j in range(i + 1, NEURON_COUNT):  # Only upper triangle
+        # Create all possible connections (only one direction between any two neurons)
+        rows, cols = [], []
+        for i in range(NEURON_COUNT):
+            for j in range(i + 1, NEURON_COUNT):  # Only upper triangle
+                if (
+                    distances[i, j] <= MAX_DISTANCE
+                ):  # Only consider connections within MAX_DISTANCE
                     rows.append(i)
                     cols.append(j)
 
-            # Calculate probability for each possible connection
-            indices = torch.tensor([rows, cols])
-            connection_distances = distances[indices[0], indices[1]]
-            probs = 1 / (connection_distances ** 2 + 1)
+        if not rows:  # If no valid connections possible
+            raise ValueError(
+                f"No valid connections possible with MAX_DISTANCE={MAX_DISTANCE}. Try increasing MAX_DISTANCE or adjusting cluster positions."
+            )
 
-            # Sample connections
-            target_connections = min(int(NEURON_COUNT * SYNAPSE_RATIO), len(rows))
-            sampled_idx = torch.multinomial(probs, target_connections)
+        # Calculate probability for each possible connection
+        indices = torch.tensor([rows, cols])
+        connection_distances = distances[indices[0], indices[1]]
+        connection_probs = 1 / (connection_distances**2 + 0.1)
 
-            rows = torch.tensor(rows)[sampled_idx]
-            cols = torch.tensor(cols)[sampled_idx]
+        # Sample connections
+        target_connections = min(int(NEURON_COUNT * SYNAPSE_RATIO), len(rows))
+        sampled_idx = torch.multinomial(connection_probs, target_connections)
 
-            if FLIP_OR_PRUNE == "prune":
-                valid_connections = []
-                for i in range(len(rows)):
-                    from_idx, to_idx = rows[i], cols[i]
-                    if (from_idx not in self.output_indices and
-                        to_idx not in self.input_indices):
-                        valid_connections.append(i)
-                valid_connections = torch.tensor(valid_connections)
-                rows = rows[valid_connections]
-                cols = cols[valid_connections]
-            else:  # flip
-                for i in range(len(rows)):
-                    from_idx, to_idx = rows[i], cols[i]
-                    if from_idx in self.output_indices or to_idx in self.input_indices:
-                        rows[i], cols[i] = cols[i], rows[i]
+        rows = torch.tensor(rows)[sampled_idx]
+        cols = torch.tensor(cols)[sampled_idx]
+
+        # flip i/o connections such that input only fan out and output only fan in
+        for i in range(len(rows)):
+            from_idx, to_idx = rows[i], cols[i]
+            if (
+                from_idx in self.output_indices or to_idx in self.input_indices
+            ) and from_idx != to_idx:
+                rows[i], cols[i] = cols[i], rows[i]
+
+        # Remove any self connections that might have been created
+        valid_connections = rows != cols
+        rows = rows[valid_connections]
+        cols = cols[valid_connections]
 
         self.synapse_indices = torch.stack([rows, cols])
         self.synapse_weights = nn.Parameter(torch.randn(len(rows)))
@@ -118,7 +124,6 @@ class Brain(nn.Module):
         self.neuron_biases = nn.Parameter(torch.randn(NEURON_COUNT)[non_input_mask])
 
         print(f"Total connections: {len(rows)}")
-
 
     def _initMLP(self):
         expected_neurons = (
@@ -176,6 +181,28 @@ class Brain(nn.Module):
         self.neuron_values = torch.zeros(NEURON_COUNT)
         self.neuron_positions = torch.zeros(NEURON_COUNT, 3)
 
+    def step(self):
+        next_values = torch.zeros_like(self.neuron_values)
+        for i in range(len(self.synapse_weights)):
+            from_idx = self.synapse_indices[0][i]
+            to_idx = self.synapse_indices[1][i]
+            next_values[to_idx] += (
+                self.neuron_values[from_idx] * self.synapse_weights[i]
+            )
+
+        non_input_mask = torch.ones(NEURON_COUNT, dtype=bool, device=self.device)
+        non_input_mask[self.input_indices] = False
+        next_values[non_input_mask] += self.neuron_biases
+
+        self.neuron_values = next_values
+
+        mask = torch.ones(NEURON_COUNT, dtype=bool, device=self.device)
+        mask[self.output_indices] = False
+        self.neuron_values[mask] = torch.tanh(self.neuron_values[mask])
+
+        # Store state after each step
+        self.activation_history.append(self.neuron_values.clone().detach().cpu())
+
     def forward(self, x):
         self.activation_history = []  # Reset history for new forward pass
         self.neuron_values = torch.zeros(
@@ -185,27 +212,9 @@ class Brain(nn.Module):
 
         self.activation_history.append(self.neuron_values.clone().detach().cpu())
 
-        for step in range(3):
-            next_values = torch.zeros_like(self.neuron_values)
-            for i in range(len(self.synapse_weights)):
-                from_idx = self.synapse_indices[0][i]
-                to_idx = self.synapse_indices[1][i]
-                next_values[to_idx] += (
-                    self.neuron_values[from_idx] * self.synapse_weights[i]
-                )
-
-            non_input_mask = torch.ones(NEURON_COUNT, dtype=bool, device=self.device)
-            non_input_mask[self.input_indices] = False
-            next_values[non_input_mask] += self.neuron_biases
-
-            self.neuron_values = next_values
-
-            mask = torch.ones(NEURON_COUNT, dtype=bool, device=self.device)
-            mask[self.output_indices] = False
-            self.neuron_values[mask] = torch.tanh(self.neuron_values[mask])
-
-            # Store state after each step
-            self.activation_history.append(self.neuron_values.clone().detach().cpu())
+        STEPS = 3
+        for _ in range(STEPS):
+            self.step()
 
         return self.neuron_values[self.output_indices]
 
@@ -219,9 +228,7 @@ class Brain(nn.Module):
             "init_strategy": self.init_strategy,
             "input_size": self.input_size,
             "output_size": self.output_size,
-            "n_connections": self.synapse_weights.shape[
-                0
-            ],
+            "n_connections": self.synapse_weights.shape[0],
         }
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         torch.save(state, filepath)
@@ -258,3 +265,58 @@ class Brain(nn.Module):
             for a, b in bidirectional[:5]:  # Show first 5
                 print(f"Between neurons {a} and {b}")
         return bidirectional
+
+    def analyzeConnectivity(self):
+        def minHopsToOutput(start_neuron):
+            if start_neuron in self.output_indices:
+                return 0, [start_neuron]
+
+            visited = set()
+            queue = [(start_neuron, 0, [start_neuron])]  # (neuron, hops, path)
+            visited.add(start_neuron)
+
+            while queue:
+                current, hops, path = queue.pop(0)
+
+                # Find all neurons this one connects to
+                connections = self.synapse_indices[1][
+                    self.synapse_indices[0] == current
+                ]
+
+                for next_neuron in connections:
+                    next_neuron = next_neuron.item()
+                    if next_neuron in self.output_indices:
+                        return hops + 1, path + [next_neuron]
+                    if next_neuron not in visited:
+                        visited.add(next_neuron)
+                        queue.append((next_neuron, hops + 1, path + [next_neuron]))
+
+            return float("inf"), []  # No path found
+
+        # Calculate min hops for each input neuron
+        hop_counts = []
+        for input_neuron in self.input_indices:
+            hops, path = minHopsToOutput(input_neuron.item())
+            if hops != float("inf"):
+                hop_counts.append(hops)
+                path_str = " -> ".join(
+                    [
+                        f"{n} (input)"
+                        if n in self.input_indices
+                        else f"{n} (output)"
+                        if n in self.output_indices
+                        else str(n)
+                        for n in path
+                    ]
+                )
+                print(f"Input neuron {input_neuron}: {hops} hops to output")
+                print(f"Route: {path_str}")
+            else:
+                print(f"Input neuron {input_neuron}: No path to output!")
+
+        if hop_counts:
+            print(f"\nAverage minimum hops: {sum(hop_counts) / len(hop_counts):.2f}")
+            print(f"Min hops: {min(hop_counts)}")
+            print(f"Max hops: {max(hop_counts)}")
+        else:
+            print("\nNo valid paths from input to output!")

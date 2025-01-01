@@ -20,7 +20,8 @@ def main():
         brain = Brain(device, input_size=1, output_size=1, init_strategy="spatial")
 
         brain.checkBidirectionalConnections()
-        #metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=10, lr_val=0.01)
+        brain.analyzeConnectivity()
+        # metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=10, lr_val=0.01)
         metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=10, lr_val=0.01)
         # metrics_brain, x_brain, y_brain = trainPolynomial(brain, n_epochs=200, lr_val=0.01)
         plotTrainingMetrics(metrics_brain)
@@ -33,7 +34,7 @@ def main():
         if args.model_path is not None:
             brain.save(args.model_path)
 
-    visualizeBrain(brain, show_weights=True, weight_thickness=True)
+    visualizeBrain(brain, show_weights=False, weight_thickness=True)
     with torch.no_grad():
         test_input = torch.tensor([[0.5]], device=device)
         brain(test_input)
