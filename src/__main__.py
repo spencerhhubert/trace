@@ -3,6 +3,7 @@ from baseline import *
 from brain import *
 import os
 
+
 def main():
     device = "cpu"
     model_path = "brain.pt"
@@ -12,9 +13,7 @@ def main():
         brain = Brain.load(model_path, device)
     else:
         print("Training new brain model...")
-        brain = Brain(
-            device, input_size=1, output_size=1, init_strategy="spatial"
-        )
+        brain = Brain(device, input_size=1, output_size=1, init_strategy="spatial")
         # metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=10, lr_val=0.01)
         metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=10, lr_val=0.01)
         # metrics_brain, x_brain, y_brain = trainPolynomial(brain, n_epochs=200, lr_val=0.01)

@@ -9,7 +9,7 @@ def train(model, x, y, n_epochs, lr_val):
     criterion = nn.MSELoss()
 
     # Save initial weights for comparison
-    initial_weights = model.synapse_weights.clone().detach()
+    model.synapse_weights.clone().detach()
 
     metrics = {
         "loss": [],

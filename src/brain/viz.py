@@ -1,8 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.animation import FuncAnimation
-import matplotlib.colors as mcolors
 
 
 def createFigureAndAxes():
@@ -119,7 +117,7 @@ def updateAnimation(frame, ax, brain, activation_history):
 def animateBrain(brain):
     fig, ax = createFigureAndAxes()
 
-    anim = FuncAnimation(
+    FuncAnimation(
         fig,
         updateAnimation,
         frames=len(brain.activation_history),
