@@ -2,11 +2,19 @@ from plotting import *
 from baseline import *
 from brain import *
 import os
-
+import argparse
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_path', type=str, default=None)
+    args = parser.parse_args()
+
+    if args.model_path is not None:
+        model_path = args.model_path
+    else:
+        model_path = os.path.join("checkpoints", "brain.pt")
+
     device = "cpu"
-    model_path = "brain.pt"
 
     if os.path.exists(model_path):
         print("Loading pre-trained brain model...")

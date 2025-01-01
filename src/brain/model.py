@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import os
 
 NEURON_COUNT = 20
 SYNAPSE_RATIO = 100
@@ -33,7 +34,8 @@ class Brain(nn.Module):
 
     def _initSpatial(self):
         # Generate random positions for all neurons in 3D space
-        self.neuron_positions = torch.rand(NEURON_COUNT, 3) * 2 - 1
+        SPREAD_FACTOR = 5
+        self.neuron_positions = (torch.rand(NEURON_COUNT, 3) * 2 - 1) * SPREAD_FACTOR
 
         # Select input and output neurons from opposite ends of x-axis
         sorted_x = torch.argsort(self.neuron_positions[:, 0])
@@ -168,6 +170,7 @@ class Brain(nn.Module):
             "input_size": self.input_size,
             "output_size": self.output_size,
         }
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         torch.save(state, filepath)
 
     @classmethod

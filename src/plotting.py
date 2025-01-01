@@ -19,7 +19,7 @@ def plotTrainingMetrics(metrics):
 def plotFunctionResults(x, y_true, y_pred, title="Function Comparison"):
     plt.figure(figsize=(10, 5))
     plt.plot(x.cpu().numpy(), y_true.cpu().numpy(), label="True function")
-    plt.plot(x.cpu().numpy(), y_pred.cpu().numpy(), "--", label="Model output")
+    plt.plot(x.cpu().numpy(), y_pred.detach().cpu().numpy(), "--", label="Model output")
     plt.legend()
     plt.grid(True)
     plt.title(title)

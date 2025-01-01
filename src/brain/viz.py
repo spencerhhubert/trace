@@ -128,7 +128,7 @@ def animateBrain(brain):
         updateAnimation,
         frames=len(brain.activation_history),
         fargs=(ax, brain, brain.activation_history),
-        interval=50,  # 500ms between frames
+        interval=10,  # 500ms between frames
         repeat=True,
     )
 
