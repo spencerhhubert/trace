@@ -8,25 +8,19 @@ import argparse
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, default=None)
-    parser.add_argument("--no-save", type=str, default=None)
     args = parser.parse_args()
-
-    if args.model_path is not None:
-        model_path = args.model_path
-    else:
-        model_path = os.path.join("checkpoints", "brain.pt")
 
     device = "cpu"
 
-    if os.path.exists(model_path) and args.no_save is None:
+    if args.model_path is not None and os.path.exists(args.model_path):
         print("Loading pre-trained brain model...")
-        brain = Brain.load(model_path, device)
+        brain = Brain.load(args.model_path, device)
     else:
         print("Training new brain model...")
         brain = Brain(device, input_size=1, output_size=1, init_strategy="spatial")
 
         brain.checkBidirectionalConnections()
-        # metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=10, lr_val=0.01)
+        #metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=10, lr_val=0.01)
         metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=10, lr_val=0.01)
         # metrics_brain, x_brain, y_brain = trainPolynomial(brain, n_epochs=200, lr_val=0.01)
         plotTrainingMetrics(metrics_brain)
@@ -36,8 +30,8 @@ def main():
             y_pred_brain[i] = brain(x_i)
         plotFunctionResults(x_brain, y_brain, y_pred_brain, "Brain: Linear Results")
 
-        if args.no_save is None:
-            brain.save(model_path)
+        if args.model_path is not None:
+            brain.save(args.model_path)
 
     visualizeBrain(brain, show_weights=True, weight_thickness=True)
     with torch.no_grad():

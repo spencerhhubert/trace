@@ -33,42 +33,92 @@ class Brain(nn.Module):
         self.to(device)
 
     def _initSpatial(self):
-        # Generate random positions for all neurons in 3D space
-        SPREAD_FACTOR = 5
+        ALLOW_BIDIRECTIONAL_CONNECTIONS = False
+        FLIP_OR_PRUNE = "flip"  # "flip" or "prune"
+        SPREAD_FACTOR = 100
         self.neuron_positions = (torch.rand(NEURON_COUNT, 3) * 2 - 1) * SPREAD_FACTOR
 
-        # Select input and output neurons from opposite ends of x-axis
-        sorted_x = torch.argsort(self.neuron_positions[:, 0])
-        self.input_indices = sorted_x[: self.input_size]
-        self.output_indices = sorted_x[-self.output_size :]
+        # Find the actual bounds of our network
+        min_coords = torch.min(self.neuron_positions, dim=0).values
+        max_coords = torch.max(self.neuron_positions, dim=0).values
+
+        # Define opposite corners using actual bounds
+        input_corner = min_coords
+        output_corner = max_coords
+
+        # Calculate distances to corners for each neuron
+        input_distances = torch.cdist(self.neuron_positions, input_corner.unsqueeze(0))
+        output_distances = torch.cdist(self.neuron_positions, output_corner.unsqueeze(0))
+
+        # Select neurons closest to each corner
+        self.input_indices = torch.argsort(input_distances.squeeze())[:self.input_size]
+        self.output_indices = torch.argsort(output_distances.squeeze())[:self.output_size]
 
         # Calculate distances between all neurons
         distances = torch.cdist(self.neuron_positions, self.neuron_positions)
 
-        # Generate connection probabilities based on inverse square distance
-        probs = 1 / (distances**2 + 1)
-        probs[
-            torch.arange(NEURON_COUNT), torch.arange(NEURON_COUNT)
-        ] = 0  # No self connections
+        if ALLOW_BIDIRECTIONAL_CONNECTIONS:
+            # Generate connection probabilities based on inverse square distance
+            probs = 1 / (distances**2 + 1)
+            probs[torch.arange(NEURON_COUNT), torch.arange(NEURON_COUNT)] = 0  # No self connections
 
-        # Calculate actual possible connections vs target
-        target_connections = int(NEURON_COUNT * SYNAPSE_RATIO)
-        possible_connections = NEURON_COUNT * (NEURON_COUNT - 1)
-        actual_connections = min(target_connections, possible_connections)
+            # Calculate actual possible connections vs target
+            target_connections = int(NEURON_COUNT * SYNAPSE_RATIO)
+            possible_connections = NEURON_COUNT * (NEURON_COUNT - 1)
+            actual_connections = min(target_connections, possible_connections)
 
-        flat_probs = probs.flatten()
-        sampled_indices = torch.multinomial(flat_probs, actual_connections)
+            flat_probs = probs.flatten()
+            sampled_indices = torch.multinomial(flat_probs, actual_connections)
 
-        rows = sampled_indices // NEURON_COUNT
-        cols = sampled_indices % NEURON_COUNT
+            rows = sampled_indices // NEURON_COUNT
+            cols = sampled_indices % NEURON_COUNT
+
+        else:
+            # Create all possible connections (only one direction between any two neurons)
+            rows, cols = [], []
+            for i in range(NEURON_COUNT):
+                for j in range(i + 1, NEURON_COUNT):  # Only upper triangle
+                    rows.append(i)
+                    cols.append(j)
+
+            # Calculate probability for each possible connection
+            indices = torch.tensor([rows, cols])
+            connection_distances = distances[indices[0], indices[1]]
+            probs = 1 / (connection_distances ** 2 + 1)
+
+            # Sample connections
+            target_connections = min(int(NEURON_COUNT * SYNAPSE_RATIO), len(rows))
+            sampled_idx = torch.multinomial(probs, target_connections)
+
+            rows = torch.tensor(rows)[sampled_idx]
+            cols = torch.tensor(cols)[sampled_idx]
+
+            if FLIP_OR_PRUNE == "prune":
+                valid_connections = []
+                for i in range(len(rows)):
+                    from_idx, to_idx = rows[i], cols[i]
+                    if (from_idx not in self.output_indices and
+                        to_idx not in self.input_indices):
+                        valid_connections.append(i)
+                valid_connections = torch.tensor(valid_connections)
+                rows = rows[valid_connections]
+                cols = cols[valid_connections]
+            else:  # flip
+                for i in range(len(rows)):
+                    from_idx, to_idx = rows[i], cols[i]
+                    if from_idx in self.output_indices or to_idx in self.input_indices:
+                        rows[i], cols[i] = cols[i], rows[i]
 
         self.synapse_indices = torch.stack([rows, cols])
-        self.synapse_weights = nn.Parameter(torch.randn(actual_connections))
+        self.synapse_weights = nn.Parameter(torch.randn(len(rows)))
 
         # Initialize biases (skip input neurons)
         non_input_mask = torch.ones(NEURON_COUNT, dtype=bool)
         non_input_mask[self.input_indices] = False
         self.neuron_biases = nn.Parameter(torch.randn(NEURON_COUNT)[non_input_mask])
+
+        print(f"Total connections: {len(rows)}")
+
 
     def _initMLP(self):
         expected_neurons = (
@@ -165,10 +215,13 @@ class Brain(nn.Module):
             "input_indices": self.input_indices,
             "output_indices": self.output_indices,
             "synapse_indices": self.synapse_indices,
-            "state_dict": self.state_dict(),  # This saves weights and biases
+            "state_dict": self.state_dict(),
             "init_strategy": self.init_strategy,
             "input_size": self.input_size,
             "output_size": self.output_size,
+            "n_connections": self.synapse_weights.shape[
+                0
+            ],
         }
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         torch.save(state, filepath)
