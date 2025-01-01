@@ -158,3 +158,34 @@ class Brain(nn.Module):
             self.activation_history.append(self.neuron_values.clone().detach().cpu())
 
         return self.neuron_values[self.output_indices]
+
+    def save(self, filepath):
+        state = {
+            'neuron_positions': self.neuron_positions,
+            'input_indices': self.input_indices,
+            'output_indices': self.output_indices,
+            'synapse_indices': self.synapse_indices,
+            'state_dict': self.state_dict(),  # This saves weights and biases
+            'init_strategy': self.init_strategy,
+            'input_size': self.input_size,
+            'output_size': self.output_size
+        }
+        torch.save(state, filepath)
+
+    @classmethod
+    def load(cls, filepath, device):
+        state = torch.load(filepath)
+        brain = cls(
+            device=device,
+            input_size=state['input_size'],
+            output_size=state['output_size'],
+            init_strategy=state['init_strategy']
+        )
+
+        brain.neuron_positions = state['neuron_positions']
+        brain.input_indices = state['input_indices']
+        brain.output_indices = state['output_indices']
+        brain.synapse_indices = state['synapse_indices']
+        brain.load_state_dict(state['state_dict'])
+
+        return brain
