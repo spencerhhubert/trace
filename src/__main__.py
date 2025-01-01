@@ -1,12 +1,11 @@
-from plotting import *
 from setup import *
+from plotting import *
 from baseline import *
 
 
 def main():
     device = setup()
 
-    # Baseline
     baseline_sin = BaselineMLP(device, input_size=1, output_size=1, hidden_size=5)
     countWeightsAffectingBaselineOutput(baseline_sin)
     metrics_baseline, x_baseline, y_baseline = trainBaselineSinX(
