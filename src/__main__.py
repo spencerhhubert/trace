@@ -19,9 +19,9 @@ def main():
         print("Training new brain model...")
         brain = Brain(device, input_size=1, output_size=1, init_strategy="spatial")
 
-        brain.checkBidirectionalConnections()
-        brain.analyzeConnectivity()
-        # metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=10, lr_val=0.01)
+        checkBidirectionalConnections(brain)
+        analyzeConnectivity(brain)
+        # metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=3, lr_val=0.01)
         metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=10, lr_val=0.01)
         # metrics_brain, x_brain, y_brain = trainPolynomial(brain, n_epochs=200, lr_val=0.01)
         plotTrainingMetrics(metrics_brain)
