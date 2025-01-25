@@ -17,7 +17,7 @@ def main():
         brain = Brain.load(args.model_path, device)
     else:
         print("Training new brain model...")
-        brain = Brain(device, input_size=1, output_size=1, init_strategy="spatial")
+        brain = Brain(device, input_size=1, output_size=1, init_strategy="mlp")
 
         checkBidirectionalConnections(brain)
         analyzeConnectivity(brain)

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import os
 
-NEURON_COUNT = 20
+NEURON_COUNT = 7
 SYNAPSE_RATIO = 100
 HIDDEN_NEURONS_LAYOUT = [5]
 
@@ -297,13 +297,13 @@ class Brain(nn.Module):
 
     def step(self):
         next_values = torch.zeros_like(self.neuron_values)
-        neurons_activated = torch.zeros_like(self.neuron_values, dtype=bool)
+        neurons_activated = torch.zeros((self.neuron_values.shape[1],), dtype=bool, device=self.device)
 
         for i in range(len(self.synapse_weights)):
             from_idx = self.synapse_indices[0][i]
             to_idx = self.synapse_indices[1][i]
             next_values[:, to_idx] += self.neuron_values[:, from_idx] * self.synapse_weights[i]
-            neurons_activated[:, to_idx] = True
+            neurons_activated[to_idx] = True
 
         non_input_mask = torch.ones(NEURON_COUNT, dtype=bool, device=self.device)
         non_input_mask[self.input_indices] = False
@@ -314,7 +314,8 @@ class Brain(nn.Module):
         next_values[:, activation_mask] = torch.tanh(next_values[:, activation_mask])
 
         self.neuron_values = next_values
-        self.activation_history.append(self.neuron_values.clone().detach().cpu())
+        # Store only the first sample's activations for visualization
+        self.activation_history.append(self.neuron_values[0].clone().detach().cpu())
 
     def forward(self, x):
         self.activation_history = []
@@ -325,8 +326,10 @@ class Brain(nn.Module):
             (batch_size, NEURON_COUNT), device=self.device, requires_grad=True
         )
 
-        # Set input values for the whole batch
-        self.neuron_values[:, self.input_indices] = x
+        # Create a new tensor instead of modifying in place
+        values = self.neuron_values.clone()
+        values[:, self.input_indices] = x
+        self.neuron_values = values
 
         self.activation_history.append(self.neuron_values.clone().detach().cpu())
 

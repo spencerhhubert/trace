@@ -11,47 +11,48 @@ def createFigureAndAxes():
 
 def plotNeurons(ax, brain, activation_values=None):
     positions = brain.neuron_positions.cpu().numpy()
-
-    # Use Paired colormap for bright but balanced colors
-    colors = plt.cm.Paired
+    n_neurons = len(positions)
 
     # Plot regular neurons
     ax.scatter(
-        positions[:, 0], positions[:, 1], positions[:, 2], c="gray", alpha=0.3
-    )  # More transparent base neurons
+        positions[:, 0], positions[:, 1], positions[:, 2], c='gray', alpha=0.3
+    )
 
-    # Yellow for input (index 5 in Paired gives a nice yellow)
+    # Input neurons
     ax.scatter(
         positions[brain.input_indices, 0],
         positions[brain.input_indices, 1],
         positions[brain.input_indices, 2],
-        c=[colors(7)],
+        c='yellow',
         s=100,
         label="Input",
     )
 
+    # Output neurons
     ax.scatter(
         positions[brain.output_indices, 0],
         positions[brain.output_indices, 1],
         positions[brain.output_indices, 2],
-        c=[colors(3)],
+        c='red',
         s=100,
         label="Output",
     )
 
-    # Use coolwarm for activations - brighter than seismic
+    # Activation visualization
     if activation_values is not None:
         act_vals = activation_values.numpy()
         sizes = 50 + 200 * np.abs(act_vals)
-        colors_activation = plt.cm.coolwarm(0.5 * (act_vals + 1))
+        colors = plt.cm.coolwarm((act_vals + 1) / 2)  # This returns RGBA values
+        colors = colors.reshape(-1, 4)  # Ensure it's Nx4 for N neurons
+
         ax.scatter(
             positions[:, 0],
             positions[:, 1],
             positions[:, 2],
             s=sizes,
-            c=colors_activation,
+            c=colors,
             alpha=0.7,
-        )  # Higher alpha for more visibility
+        )
 
 
 def plotSynapses(ax, brain, show_weights=False, weight_thickness=False):
@@ -142,12 +143,23 @@ def updateAnimation(frame, ax, brain, activation_history):
 def animateBrain(brain):
     fig, ax = createFigureAndAxes()
 
+    SPEED_FACTOR = 200
+    REPEAT_DELAY_MS = 1000
+
+    def frame_gen():
+        while True:
+            for i in range(len(brain.activation_history)):
+                yield i
+            # Yield the last frame multiple times to create a pause
+            for _ in range(int(REPEAT_DELAY_MS / (SPEED_FACTOR))):
+                yield len(brain.activation_history) - 1
+
     anim = FuncAnimation(
         fig,
         updateAnimation,
         frames=len(brain.activation_history),
         fargs=(ax, brain, brain.activation_history),
-        interval=10,  # 500ms between frames
+        interval=SPEED_FACTOR,
         repeat=True,
     )
 
