@@ -48,7 +48,7 @@ def trainLinear(model, n_epochs, lr_val, slope=0.3, intercept=10):
     return metrics, x, y
 
 def trainSinX(model, n_epochs, lr_val):
-    x = torch.linspace(-np.pi, np.pi, 100).unsqueeze(1)
+    x = torch.linspace(-np.pi*2, np.pi*2, 100).unsqueeze(1)
     y = torch.sin(x)
 
     x = (x + np.pi) / (2 * np.pi)

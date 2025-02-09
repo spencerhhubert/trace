@@ -2,9 +2,10 @@ import torch
 from torch import nn
 import os
 
-NEURON_COUNT = 7
+NEURON_COUNT = 100
 SYNAPSE_RATIO = 100
 HIDDEN_NEURONS_LAYOUT = [5]
+STEPS = 3
 
 
 class Brain(nn.Module):
@@ -297,24 +298,30 @@ class Brain(nn.Module):
 
     def step(self):
         next_values = torch.zeros_like(self.neuron_values)
-        neurons_activated = torch.zeros((self.neuron_values.shape[1],), dtype=bool, device=self.device)
-
+        # Propagate weighted inputs from all synapses
         for i in range(len(self.synapse_weights)):
             from_idx = self.synapse_indices[0][i]
             to_idx = self.synapse_indices[1][i]
             next_values[:, to_idx] += self.neuron_values[:, from_idx] * self.synapse_weights[i]
-            neurons_activated[to_idx] = True
 
-        non_input_mask = torch.ones(NEURON_COUNT, dtype=bool, device=self.device)
+        # For non-input neurons, add bias only if weighted input is nonzero (using a tolerance)
+        non_input_mask = torch.ones(NEURON_COUNT, dtype=torch.bool, device=self.device)
         non_input_mask[self.input_indices] = False
-        next_values[:, non_input_mask] += self.neuron_biases
+        weighted_input = next_values[:, non_input_mask]
+        bias_mask = (weighted_input.abs() > 1e-6).float()
+        next_values[:, non_input_mask] += self.neuron_biases * bias_mask
 
-        # Only apply activation to neurons that received input (excluding output neurons)
-        activation_mask = neurons_activated & ~torch.isin(torch.arange(NEURON_COUNT, device=self.device), self.output_indices)
-        next_values[:, activation_mask] = torch.tanh(next_values[:, activation_mask])
+        # For non-output neurons, apply tanh activation only when there was input (or bias added)
+        non_output_mask = torch.ones(NEURON_COUNT, dtype=torch.bool, device=self.device)
+        non_output_mask[self.output_indices] = False
+        activation_condition = (next_values[:, non_output_mask].abs() > 1e-6)
+        next_values[:, non_output_mask] = torch.where(
+            activation_condition, torch.tanh(next_values[:, non_output_mask]), next_values[:, non_output_mask]
+        )
 
+        # Clear previous activations and update using the freshly computed values
         self.neuron_values = next_values
-        # Store only the first sample's activations for visualization
+        # Store the first sample's activations for visualization
         self.activation_history.append(self.neuron_values[0].clone().detach().cpu())
 
     def forward(self, x):
@@ -333,7 +340,6 @@ class Brain(nn.Module):
 
         self.activation_history.append(self.neuron_values.clone().detach().cpu())
 
-        STEPS = 3
         for _ in range(STEPS):
             self.step()
 

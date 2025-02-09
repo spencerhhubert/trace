@@ -17,12 +17,12 @@ def main():
         brain = Brain.load(args.model_path, device)
     else:
         print("Training new brain model...")
-        brain = Brain(device, input_size=1, output_size=1, init_strategy="mlp")
+        brain = Brain(device, input_size=1, output_size=1, init_strategy="spatial")
 
         checkBidirectionalConnections(brain)
         analyzeConnectivity(brain)
         # metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=3, lr_val=0.01)
-        metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=10, lr_val=0.01)
+        metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=100, lr_val=0.01)
         # metrics_brain, x_brain, y_brain = trainPolynomial(brain, n_epochs=200, lr_val=0.01)
         plotTrainingMetrics(metrics_brain)
         y_pred_brain = torch.zeros_like(y_brain)
@@ -34,7 +34,7 @@ def main():
         if args.model_path is not None:
             brain.save(args.model_path)
 
-    visualizeBrain(brain, show_weights=False, weight_thickness=True)
+    # visualizeBrain(brain, show_weights=False, weight_thickness=True)
     with torch.no_grad():
         test_input = torch.tensor([[0.5]], device=device)
         brain(test_input)
