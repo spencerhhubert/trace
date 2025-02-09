@@ -22,7 +22,7 @@ def main():
         checkBidirectionalConnections(brain)
         analyzeConnectivity(brain)
         # metrics_brain, x_brain, y_brain = trainLinear(brain, n_epochs=3, lr_val=0.01)
-        metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=1000, lr_val=0.01)
+        metrics_brain, x_brain, y_brain = trainSinX(brain, n_epochs=1000, lr_val=0.001)
         # metrics_brain, x_brain, y_brain = trainPolynomial(brain, n_epochs=200, lr_val=0.01)
         plotTrainingMetrics(metrics_brain)
         y_pred_brain = torch.zeros_like(y_brain)
