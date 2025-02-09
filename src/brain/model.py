@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import os
 
-NEURON_COUNT = 40
+NEURON_COUNT = 50
 SYNAPSE_RATIO = 100
 HIDDEN_NEURONS_LAYOUT = [5]
 STEPS = 3
